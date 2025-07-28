@@ -21,6 +21,8 @@ class ActivityPubKeyManager {
         const maxWait = 10000; // 10 seconds
         const startTime = Date.now();
         
+        await fs.ensureDir(this.dataDir);
+        
         while (Date.now() - startTime < maxWait) {
             try {
                 await fs.writeFile(this.lockFile, process.pid.toString(), { flag: 'wx' });
@@ -37,20 +39,34 @@ class ActivityPubKeyManager {
                             continue;
                         } catch (killError) {
                             // Process doesn't exist, remove stale lock
-                            await fs.remove(this.lockFile);
+                            try {
+                                await fs.remove(this.lockFile);
+                            } catch (removeError) {
+                                // If remove fails, just continue - maybe another process removed it
+                            }
                             continue;
                         }
                     } catch (readError) {
                         // Can't read lock file, remove it
-                        await fs.remove(this.lockFile);
+                        try {
+                            await fs.remove(this.lockFile);
+                        } catch (removeError) {
+                            // If remove fails, just continue
+                        }
                         continue;
                     }
                 } else {
-                    throw error;
+
+                    console.warn(`⚠️ [ACTIVITYPUB] Lock error (retrying): ${error.message}`);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    continue;
                 }
             }
         }
-        throw new Error('Could not acquire lock within timeout');
+        
+        // ✅ Wenn Lock nach Timeout nicht erhalten werden kann, einfach ohne Lock weitermachen
+        console.warn('⚠️ [ACTIVITYPUB] Could not acquire lock within timeout - continuing without lock');
+        return true;
     }
 
     async releaseLock() {

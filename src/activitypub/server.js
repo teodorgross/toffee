@@ -152,10 +152,10 @@ class ActivityPubServer {
             "preferredUsername": this.username,
             "summary": this.description,
             "url": this.baseUrl,
-            "outbox": `${this.baseUrl}/outbox`,
+            "outbox": `${this.baseUrl}/outbox.json`,
             "followers": `${this.baseUrl}/followers`,
             "following": `${this.baseUrl}/following`,
-            "inbox": `${this.baseUrl}/inbox`,
+            "inbox": `${this.baseUrl}/inbox.json`,
             "icon": {
                 "type": "Image",
                 "mediaType": "image/jpeg",
@@ -267,7 +267,7 @@ class ActivityPubServer {
         return {
             "@context": "https://www.w3.org/ns/activitystreams",
             "type": "OrderedCollection",
-            "id": `${this.baseUrl}/outbox`,
+            "id": `${this.baseUrl}/outbox.json`,
             "totalItems": allActivities.length,
             "orderedItems": allActivities
         };

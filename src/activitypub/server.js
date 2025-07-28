@@ -3,7 +3,7 @@ const fs = require('fs-extra');
 const crypto = require('crypto');
 
 class ActivityPubServer {
-    constructor() {
+    constructor(keyManager = null) {
         this.domain = process.env.FEDIVERSE_DOMAIN || new URL(process.env.BASE_URL || 'http://localhost:3000').hostname;
         this.username = process.env.FEDIVERSE_USERNAME || 'blog';
         this.displayName = process.env.FEDIVERSE_DISPLAY_NAME || 'Blog & Wiki';
@@ -11,33 +11,65 @@ class ActivityPubServer {
         this.baseUrl = process.env.BASE_URL || 'http://localhost:3000';
         this.dataDir = path.join(__dirname, '../../activitypub-data');
         
-        this.publicKey = this.getPublicKey();
+        this.keyManager = keyManager;
+        this.publicKey = null;
         this.privateKey = null;
         
         this.followers = new Set();
         this.following = new Set();
         this.activities = [];
         
-        this.loadData();
-        this.loadPrivateKey();
+        this.initialize();
     }
 
-    getPublicKey() {
+    async initialize() {
+        await this.loadKeys();
+        await this.loadData();
+        
+        if (this.keyManager) {
+            this.keyManager.onKeysRefreshed(async () => {
+                console.log('🔄 [ACTIVITYPUB] Keys refreshed, reloading...');
+                await this.loadKeys();
+            });
+        }
+    }
+
+    async loadKeys() {
+        try {
+            if (this.keyManager) {
+                this.publicKey = await this.keyManager.getPublicKey();
+                this.privateKey = await this.keyManager.getPrivateKey();
+            } else {
+                this.publicKey = this.getPublicKeyFromEnv();
+                await this.loadPrivateKeyFromFile();
+            }
+            
+            if (this.publicKey && this.privateKey) {
+                console.log('🔑 [ACTIVITYPUB] Keys loaded successfully');
+            } else {
+                console.log('⚠️ [ACTIVITYPUB] Keys not available yet');
+            }
+        } catch (error) {
+            console.error('❌ [ACTIVITYPUB] Error loading keys:', error);
+        }
+    }
+
+    getPublicKeyFromEnv() {
         if (process.env.ACTIVITYPUB_PUBLIC_KEY) {
             return process.env.ACTIVITYPUB_PUBLIC_KEY.replace(/\\n/g, '\n');
         }
         return null;
     }
 
-    async loadPrivateKey() {
+    async loadPrivateKeyFromFile() {
         try {
             const privateKeyFile = path.join(this.dataDir, 'private-key.pem');
             
             if (await fs.pathExists(privateKeyFile)) {
                 this.privateKey = await fs.readFile(privateKeyFile, 'utf8');
-                console.log('🔑 [ACTIVITYPUB] Private key loaded');
+                console.log('🔑 [ACTIVITYPUB] Private key loaded from file');
             } else {
-                console.log('🔑 [ACTIVITYPUB] No private key found');
+                console.log('🔑 [ACTIVITYPUB] No private key file found');
                 
                 try {
                     const files = await fs.readdir(this.dataDir);
@@ -63,11 +95,19 @@ class ActivityPubServer {
         }
     }
 
+    areKeysAvailable() {
+        return !!(this.publicKey && this.privateKey);
+    }
+
+    async refreshKeys() {
+        await this.loadKeys();
+        return this.areKeysAvailable();
+    }
+
     async loadData() {
         try {
             await fs.ensureDir(this.dataDir);
 
-            // Load followers
             try {
                 const followersData = await fs.readFile(path.join(this.dataDir, 'followers.json'), 'utf8');
                 this.followers = new Set(JSON.parse(followersData));
@@ -75,7 +115,6 @@ class ActivityPubServer {
                 console.log('[ACTIVITYPUB] No existing followers file');
             }
 
-            // Load following
             try {
                 const followingData = await fs.readFile(path.join(this.dataDir, 'following.json'), 'utf8');
                 this.following = new Set(JSON.parse(followingData));
@@ -83,7 +122,6 @@ class ActivityPubServer {
                 console.log('[ACTIVITYPUB] No existing following file');
             }
 
-            // Load activities
             try {
                 const activitiesData = await fs.readFile(path.join(this.dataDir, 'activities.json'), 'utf8');
                 this.activities = JSON.parse(activitiesData);
@@ -138,6 +176,11 @@ class ActivityPubServer {
     }
 
     generateActor() {
+        if (!this.areKeysAvailable()) {
+            console.error('❌ [ACTIVITYPUB] Cannot generate actor - keys not available');
+            return null;
+        }
+
         return {
             "@context": [
                 "https://www.w3.org/ns/activitystreams",
@@ -270,8 +313,8 @@ class ActivityPubServer {
     }
 
     signRequest(method, url, body) {
-        if (!this.privateKey) {
-            console.error('❌ No private key for signing!');
+        if (!this.areKeysAvailable()) {
+            console.error('❌ [ACTIVITYPUB] Cannot sign request - keys not available');
             return null;
         }
 
@@ -279,14 +322,11 @@ class ActivityPubServer {
             const urlObj = new URL(url);
             const date = new Date().toUTCString();
             
-            // SHA-256 Digest
             const bodyBuffer = Buffer.from(body || '', 'utf8');
             const digest = 'SHA-256=' + crypto.createHash('sha256').update(bodyBuffer).digest('base64');
             
-            // Request Target
             const requestTarget = `${method.toLowerCase()} ${urlObj.pathname}`;
             
-            // Headers to sign
             const headersToSign = [
                 `(request-target): ${requestTarget}`,
                 `host: ${urlObj.hostname}`,
@@ -297,13 +337,11 @@ class ActivityPubServer {
             
             const stringToSign = headersToSign.join('\n');
             
-       
             const signature = crypto.sign('sha256', Buffer.from(stringToSign, 'utf8'), {
                 key: this.privateKey,
                 padding: crypto.constants.RSA_PKCS1_PADDING
             }).toString('base64');
             
-         
             return {
                 'Host': urlObj.hostname,
                 'Date': date,
@@ -324,7 +362,6 @@ class ActivityPubServer {
             console.log(`📤 Sending activity to ${followerUrl}`);
             console.log(`📤 Activity type: ${activity.type}`);
 
-            // 1. Get follower's actor info
             const actorResponse = await fetch(followerUrl, {
                 headers: { 
                     'Accept': 'application/activity+json, application/ld+json',
@@ -348,7 +385,6 @@ class ActivityPubServer {
 
             console.log(`📤 Inbox URL: ${inboxUrl}`);
 
-            // 2. Sign and send activity
             const body = JSON.stringify(activity, null, 0);
             console.log(`📤 Activity body length: ${body.length} chars`);
             
@@ -377,7 +413,6 @@ class ActivityPubServer {
                 console.error(`❌ Status: ${response.status}`);
                 console.error(`❌ Body: ${errorText}`);
                 
-                // Spezielle Mastodon-Fehler loggen
                 if (errorText.includes('signature')) {
                     console.error(`❌ SIGNATURE VERIFICATION FAILED!`);
                     console.error(`❌ This means the receiving server rejected our signature`);
@@ -400,7 +435,6 @@ class ActivityPubServer {
             console.log(`👤 Processing Follow from: ${activity.actor}`);
             console.log(`📊 Available content: ${blogPosts.length} blog posts, ${wikiPages.length} wiki pages`);
             
-            // Add follower
             this.followers.add(activity.actor);
             await this.saveData();
             
@@ -416,7 +450,6 @@ class ActivityPubServer {
                 "published": new Date().toISOString()
             };
             
-            // Send Accept activity
             const sent = await this.sendActivityToFollower(activity.actor, acceptActivity);
             
             if (sent) {
@@ -513,7 +546,6 @@ class ActivityPubServer {
         try {
             console.log(`📤 [ACTIVITYPUB] Sending recent posts to new follower: ${followerUrl}`);
             
-            // Recent blog posts (last 3)
             const recentBlogPosts = blogPosts.slice(0, 3);
             console.log(`📝 [ACTIVITYPUB] Sending ${recentBlogPosts.length} recent blog posts`);
             
@@ -548,7 +580,7 @@ class ActivityPubServer {
                     console.log(`❌ Failed to send blog post "${post.title}" to ${followerUrl}`);
                 }
                 
-                await new Promise(resolve => setTimeout(resolve, 200)); // Rate limiting
+                await new Promise(resolve => setTimeout(resolve, 200));
             }
             
 
@@ -591,7 +623,7 @@ class ActivityPubServer {
                         console.log(`❌ Failed to send wiki page "${page.title}" to ${followerUrl}`);
                     }
                     
-                    await new Promise(resolve => setTimeout(resolve, 200)); // Rate limiting
+                    await new Promise(resolve => setTimeout(resolve, 200));
                 }
             }
             

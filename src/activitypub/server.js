@@ -147,7 +147,7 @@ class ActivityPubServer {
                 "https://w3id.org/security/v1"
             ],
             "type": "Person",
-            "id": `${this.baseUrl}/actor`,
+            "id": `${this.baseUrl}/actor.json`,
             "name": this.displayName,
             "preferredUsername": this.username,
             "summary": this.description,

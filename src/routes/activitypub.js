@@ -1,6 +1,5 @@
 function setupActivityPubRoutes(app, activityPubServer) {
     
-    // WebFinger
     app.get('/.well-known/webfinger', (req, res) => {
         const resource = req.query.resource;
         const expected = `acct:${activityPubServer.username}@${activityPubServer.domain}`;
@@ -16,41 +15,20 @@ function setupActivityPubRoutes(app, activityPubServer) {
         }
     });
 
-    // Actor - Both variants
-    app.get('/actor', (req, res) => {
-        console.log(`[ACTIVITYPUB] Actor request from ${req.get('User-Agent') || 'Unknown'}`);
-        res.set('Content-Type', 'application/activity+json; charset=utf-8');
-        res.json(activityPubServer.generateActor());
-    });
-
     app.get('/actor.json', (req, res) => {
         console.log(`[ACTIVITYPUB] Actor.json request from ${req.get('User-Agent') || 'Unknown'}`);
         res.set('Content-Type', 'application/activity+json; charset=utf-8');
         res.json(activityPubServer.generateActor());
     });
 
-    // Outbox - Both variants
-    app.get('/outbox', (req, res) => {
-        console.log(`[ACTIVITYPUB] Outbox request from ${req.get('User-Agent') || 'Unknown'}`);
-        res.set('Content-Type', 'application/activity+json; charset=utf-8');
-        const blogPosts = app.locals.blogProcessor ? app.locals.blogProcessor.posts : [];
-        const wikiPages = app.locals.wikiProcessor ? app.locals.wikiProcessor.pages : [];
-        res.json(activityPubServer.generateOutbox(blogPosts, wikiPages));
-    });
-
     app.get('/outbox.json', (req, res) => {
         console.log(`[ACTIVITYPUB] Outbox.json request from ${req.get('User-Agent') || 'Unknown'}`);
         res.set('Content-Type', 'application/activity+json; charset=utf-8');
-        const blogPosts = app.locals.blogProcessor ? app.locals.blogProcessor.posts : [];
-        const wikiPages = app.locals.wikiProcessor ? app.locals.wikiProcessor.pages : [];
+        
+        const blogPosts = getBlogPosts(app);
+        const wikiPages = getWikiPages(app);
+        
         res.json(activityPubServer.generateOutbox(blogPosts, wikiPages));
-    });
-
-    // Followers - Both variants
-    app.get('/followers', (req, res) => {
-        console.log(`[ACTIVITYPUB] Followers request - Current: ${activityPubServer.followers.size}`);
-        res.set('Content-Type', 'application/activity+json; charset=utf-8');
-        res.json(activityPubServer.generateCollection('followers'));
     });
 
     app.get('/followers.json', (req, res) => {
@@ -59,20 +37,12 @@ function setupActivityPubRoutes(app, activityPubServer) {
         res.json(activityPubServer.generateCollection('followers'));
     });
 
-    // Following - Both variants
-    app.get('/following', (req, res) => {
-        console.log(`[ACTIVITYPUB] Following request - Current: ${activityPubServer.following.size}`);
-        res.set('Content-Type', 'application/activity+json; charset=utf-8');
-        res.json(activityPubServer.generateCollection('following'));
-    });
-
     app.get('/following.json', (req, res) => {
         console.log(`[ACTIVITYPUB] Following.json request - Current: ${activityPubServer.following.size}`);
         res.set('Content-Type', 'application/activity+json; charset=utf-8');
         res.json(activityPubServer.generateCollection('following'));
     });
 
-    // Inbox GET (for info) - Both variants
     app.get('/inbox', (req, res) => {
         console.log(`[ACTIVITYPUB] GET request to /inbox`);
         res.set('Content-Type', 'application/activity+json; charset=utf-8');
@@ -85,19 +55,6 @@ function setupActivityPubRoutes(app, activityPubServer) {
         });
     });
 
-    app.get('/inbox.json', (req, res) => {
-        console.log(`[ACTIVITYPUB] GET request to /inbox.json`);
-        res.set('Content-Type', 'application/activity+json; charset=utf-8');
-        res.json({
-            "@context": "https://www.w3.org/ns/activitystreams",
-            "type": "OrderedCollection",
-            "id": `${activityPubServer.baseUrl}/inbox`,
-            "totalItems": activityPubServer.activities.length,
-            "summary": `ActivityPub inbox. ${activityPubServer.followers.size} followers. Follow requests automatically accepted.`
-        });
-    });
-
-    // Inbox POST (ActivityPub interactions)
     app.post('/inbox', async (req, res) => {
         const activity = req.body;
         
@@ -111,11 +68,21 @@ function setupActivityPubRoutes(app, activityPubServer) {
             switch (activity.type) {
                 case 'Follow':
                     console.log(`[ACTIVITYPUB] Processing Follow from: ${activity.actor}`);
-                    const acceptActivity = await activityPubServer.handleFollow(activity);
+                    
+                    const blogPosts = getBlogPosts(app);
+                    const wikiPages = getWikiPages(app);
+                    
+                    const result = await activityPubServer.handleFollow(
+                        activity, 
+                        blogPosts, 
+                        wikiPages
+                    );
+                    
                     res.status(202).json({ 
-                        message: 'Follow accepted',
+                        message: result.success ? 'Follow accepted and recent content shared' : 'Follow accepted (content sharing failed)',
                         follower: activity.actor,
-                        totalFollowers: activityPubServer.followers.size
+                        totalFollowers: activityPubServer.followers.size,
+                        contentShared: result.success
                     });
                     break;
                     
@@ -167,12 +134,11 @@ function setupActivityPubRoutes(app, activityPubServer) {
         }
     });
 
-    // JSON Feed
     app.get('/feed.json', (req, res) => {
         console.log(`[FEED] JSON Feed request`);
         
-        const blogPosts = app.locals.blogProcessor ? app.locals.blogProcessor.posts : [];
-        const wikiPages = app.locals.wikiProcessor ? app.locals.wikiProcessor.pages : [];
+        const blogPosts = getBlogPosts(app);
+        const wikiPages = getWikiPages(app);
         
         const blogItems = blogPosts.map(post => ({
             "id": `${activityPubServer.baseUrl}/blog/${post.slug}`,
@@ -217,8 +183,10 @@ function setupActivityPubRoutes(app, activityPubServer) {
         });
     });
 
-    // Admin routes (for debugging)
     app.get('/admin/activitypub', (req, res) => {
+        const blogPosts = getBlogPosts(app);
+        const wikiPages = getWikiPages(app);
+        
         res.json({
             server: {
                 domain: activityPubServer.domain,
@@ -232,14 +200,44 @@ function setupActivityPubRoutes(app, activityPubServer) {
                 followers: activityPubServer.followers.size,
                 following: activityPubServer.following.size,
                 activities: activityPubServer.activities.length,
-                blogPosts: app.locals.blogProcessor ? app.locals.blogProcessor.posts.length : 0,
-                wikiPages: app.locals.wikiProcessor ? app.locals.wikiProcessor.pages.length : 0
+                blogPosts: blogPosts.length,
+                wikiPages: wikiPages.length
             },
             followers: [...activityPubServer.followers],
             following: [...activityPubServer.following],
-            recentActivities: activityPubServer.activities.slice(-5)
+            recentActivities: activityPubServer.activities.slice(-5),
+            currentContent: {
+                blogPosts: blogPosts.map(p => ({ slug: p.slug, title: p.title, date: p.date })),
+                wikiPages: wikiPages.map(p => ({ slug: p.slug, title: p.title, lastModified: p.lastModified }))
+            }
         });
     });
+}
+
+function getBlogPosts(app) {
+    if (app.locals && app.locals.blogProcessor && app.locals.blogProcessor.posts) {
+        return app.locals.blogProcessor.posts;
+    }
+    
+    if (typeof blogPosts !== 'undefined' && Array.isArray(blogPosts)) {
+        return blogPosts;
+    }
+    
+    console.warn('⚠️ [ACTIVITYPUB] Could not find blog posts data');
+    return [];
+}
+
+function getWikiPages(app) {
+    if (app.locals && app.locals.wikiProcessor && app.locals.wikiProcessor.pages) {
+        return app.locals.wikiProcessor.pages;
+    }
+    
+    if (typeof wikiPages !== 'undefined' && Array.isArray(wikiPages)) {
+        return wikiPages;
+    }
+    
+    console.warn('⚠️ [ACTIVITYPUB] Could not find wiki pages data');
+    return [];
 }
 
 module.exports = { setupActivityPubRoutes };

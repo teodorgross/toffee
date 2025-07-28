@@ -1,7 +1,6 @@
 const path = require('path');
 const fs = require('fs-extra');
 const crypto = require('crypto');
-const { access } = require('fs');
 
 class ActivityPubServer {
     constructor() {
@@ -121,8 +120,7 @@ class ActivityPubServer {
         return {
             "subject": `acct:${this.username}@${this.domain}`,
             "aliases": [
-                `${this.baseUrl}/actor`,
-                `${this.baseUrl}/actor.json`
+                `${this.baseUrl}/actor.json`  
             ],
             "links": [
                 {
@@ -130,7 +128,6 @@ class ActivityPubServer {
                     "type": "application/activity+json",
                     "href": `${this.baseUrl}/actor.json`
                 },
-                
                 {
                     "rel": "http://webfinger.net/rel/profile-page",
                     "type": "text/html",
@@ -147,14 +144,14 @@ class ActivityPubServer {
                 "https://w3id.org/security/v1"
             ],
             "type": "Person",
-            "id": `${this.baseUrl}/actor.json`,
+            "id": `${this.baseUrl}/actor.json`,                    
             "name": this.displayName,
             "preferredUsername": this.username,
             "summary": this.description,
             "url": this.baseUrl,
-            "outbox": `${this.baseUrl}/outbox.json`,
-            "followers": `${this.baseUrl}/followers`,
-            "following": `${this.baseUrl}/following`,
+            "outbox": `${this.baseUrl}/outbox.json`,              
+            "followers": `${this.baseUrl}/followers.json`,        
+            "following": `${this.baseUrl}/following.json`,        
             "inbox": `${this.baseUrl}/inbox.json`,
             "icon": {
                 "type": "Image",
@@ -162,14 +159,14 @@ class ActivityPubServer {
                 "url": `${this.baseUrl}/assets/img/avatar.jpg`
             },
             "publicKey": {
-                "id": `${this.baseUrl}/actor.json#main-key`,
+                "id": `${this.baseUrl}/actor.json#main-key`,       
                 "owner": `${this.baseUrl}/actor.json`,
                 "publicKeyPem": this.publicKey
             },
             "manuallyApprovesFollowers": false,
-            "alsoKnownAs": [
-                `${this.baseUrl}/actor.json`
-            ]
+            "discoverable": true,                                 
+            "indexable": true,                                   
+            "alsoKnownAs": []
         };
     }
 
@@ -179,7 +176,7 @@ class ActivityPubServer {
         const blogActivities = blogPosts.map(post => ({
             "type": "Create",
             "id": `${this.baseUrl}/activities/blog/${post.slug}`,
-            "actor": `${this.baseUrl}/actor.json`,
+            "actor": `${this.baseUrl}/actor.json`,                
             "published": new Date(post.date).toISOString(),
             "to": ["https://www.w3.org/ns/activitystreams#Public"],
             "cc": [`${this.baseUrl}/followers`],
@@ -191,7 +188,7 @@ class ActivityPubServer {
                 "content": post.content,
                 "summary": post.excerpt,
                 "published": new Date(post.date).toISOString(),
-                "attributedTo": `${this.baseUrl}/actor.json`,
+                "attributedTo": `${this.baseUrl}/actor.json`,     
                 "to": ["https://www.w3.org/ns/activitystreams#Public"],
                 "cc": [`${this.baseUrl}/followers`],
                 "mediaType": "text/html",
@@ -204,70 +201,58 @@ class ActivityPubServer {
         }));
 
         const includeWiki = process.env.INCLUDE_WIKI_IN_ACTIVITYPUB !== 'false';
-        console.log(`[ACTIVITYPUB] INCLUDE_WIKI_IN_ACTIVITYPUB = ${process.env.INCLUDE_WIKI_IN_ACTIVITYPUB} (includeWiki: ${includeWiki})`);
-        
         let wikiActivities = [];
         
         if (includeWiki && wikiPages.length > 0) {
-            console.log(`[ACTIVITYPUB] Including ${wikiPages.length} wiki pages in outbox`);
-            
             const filteredWikiPages = wikiPages.filter(page => page.slug !== 'home');
-            console.log(`[ACTIVITYPUB] Wiki pages after filtering out home: ${filteredWikiPages.length}`);
             
-            wikiActivities = filteredWikiPages.map(page => {
-                console.log(`[ACTIVITYPUB] Processing wiki page: ${page.title} (${page.slug})`);
-                return {
-                    "type": "Create",
-                    "id": `${this.baseUrl}/activities/wiki/${page.slug}`,
-                    "actor": `${this.baseUrl}/actor.json`,
+            wikiActivities = filteredWikiPages.map(page => ({
+                "type": "Create",
+                "id": `${this.baseUrl}/activities/wiki/${page.slug}`,
+                "actor": `${this.baseUrl}/actor.json`,            
+                "published": new Date(page.lastModified).toISOString(),
+                "to": ["https://www.w3.org/ns/activitystreams#Public"],
+                "cc": [`${this.baseUrl}/followers`],
+                "object": {
+                    "type": "Article",
+                    "id": `${this.baseUrl}/wiki/${page.slug}`,
+                    "url": `${this.baseUrl}/wiki/${page.slug}`,
+                    "name": `📖 ${page.title}`,
+                    "content": page.content,
+                    "summary": page.description || `Wiki page: ${page.title}`,
                     "published": new Date(page.lastModified).toISOString(),
+                    "attributedTo": `${this.baseUrl}/actor.json`, 
                     "to": ["https://www.w3.org/ns/activitystreams#Public"],
                     "cc": [`${this.baseUrl}/followers`],
-                    "object": {
-                        "type": "Article",
-                        "id": `${this.baseUrl}/wiki/${page.slug}`,
-                        "url": `${this.baseUrl}/wiki/${page.slug}`,
-                        "name": `📖 ${page.title}`,
-                        "content": page.content,
-                        "summary": page.description || `Wiki page: ${page.title}`,
-                        "published": new Date(page.lastModified).toISOString(),
-                        "attributedTo": `${this.baseUrl}/actor.json`,
-                        "to": ["https://www.w3.org/ns/activitystreams#Public"],
-                        "cc": [`${this.baseUrl}/followers`],
-                        "mediaType": "text/html",
-                        "tag": [
-                            {
-                                "type": "Hashtag",
-                                "name": `#wiki`,
-                                "href": `${this.baseUrl}/wiki`
-                            },
-                            {
-                                "type": "Hashtag",
-                                "name": `#${page.category}`,
-                                "href": `${this.baseUrl}/wiki?category=${encodeURIComponent(page.category)}`
-                            },
-                            ...(page.tags || []).map(tag => ({
-                                "type": "Hashtag",
-                                "href": `${this.baseUrl}/wiki?tag=${encodeURIComponent(tag)}`,
-                                "name": `#${tag}`
-                            }))
-                        ]
-                    }
-                };
-            });
-        } else {
-            console.log(`[ACTIVITYPUB] Wiki pages excluded from outbox (INCLUDE_WIKI_IN_ACTIVITYPUB=${process.env.INCLUDE_WIKI_IN_ACTIVITYPUB}, wikiPages.length=${wikiPages.length})`);
+                    "mediaType": "text/html",
+                    "tag": [
+                        {
+                            "type": "Hashtag",
+                            "name": `#wiki`,
+                            "href": `${this.baseUrl}/wiki`
+                        },
+                        {
+                            "type": "Hashtag",
+                            "name": `#${page.category}`,
+                            "href": `${this.baseUrl}/wiki?category=${encodeURIComponent(page.category)}`
+                        },
+                        ...(page.tags || []).map(tag => ({
+                            "type": "Hashtag",
+                            "href": `${this.baseUrl}/wiki?tag=${encodeURIComponent(tag)}`,
+                            "name": `#${tag}`
+                        }))
+                    ]
+                }
+            }));
         }
 
         const allActivities = [...blogActivities, ...wikiActivities];
         allActivities.sort((a, b) => new Date(b.published) - new Date(a.published));
 
-        console.log(`[ACTIVITYPUB] Generated outbox with ${allActivities.length} total activities (${blogActivities.length} blog + ${wikiActivities.length} wiki)`);
-
         return {
             "@context": "https://www.w3.org/ns/activitystreams",
             "type": "OrderedCollection",
-            "id": `${this.baseUrl}/outbox.json`,
+            "id": `${this.baseUrl}/outbox.json`,                  
             "totalItems": allActivities.length,
             "orderedItems": allActivities
         };
@@ -278,62 +263,61 @@ class ActivityPubServer {
         return {
             "@context": "https://www.w3.org/ns/activitystreams",
             "type": "OrderedCollection",
-            "id": `${this.baseUrl}/${type}`,
+            "id": `${this.baseUrl}/${type}.json`,                 
             "totalItems": items.length,
             "orderedItems": items
         };
     }
 
-        signRequest(method, url, body) {
-                if (!this.privateKey) {
-                    console.error('❌ No private key for signing!');
-                    return null;
-                }
+    signRequest(method, url, body) {
+        if (!this.privateKey) {
+            console.error('❌ No private key for signing!');
+            return null;
+        }
 
-                try {
-                    const urlObj = new URL(url);
-                    const date = new Date().toUTCString();
-                    
-                    // SHA-256 Digest
-                    const bodyBuffer = Buffer.from(body || '', 'utf8');
-                    const digest = 'SHA-256=' + crypto.createHash('sha256').update(bodyBuffer).digest('base64');
-                    
-                    // Request Target
-                    const requestTarget = `${method.toLowerCase()} ${urlObj.pathname}`;
-                    
-                    // Headers to sign
-                    const headersToSign = [
-                        `(request-target): ${requestTarget}`,
-                        `host: ${urlObj.hostname}`,
-                        `date: ${date}`,
-                        `digest: ${digest}`,
-                        `content-type: application/activity+json`
-                    ];
-                    
-                    const stringToSign = headersToSign.join('\n');
-                    
-                    // Generate signature
-                    const signature = crypto.sign('sha256', Buffer.from(stringToSign, 'utf8'), {
-                        key: this.privateKey,
-                        padding: crypto.constants.RSA_PKCS1_PADDING
-                    }).toString('base64');
-                    
-                    // Return headers
-                    return {
-                        'Host': urlObj.hostname,
-                        'Date': date,
-                        'Digest': digest,
-                        'Content-Type': 'application/activity+json',
-                        'User-Agent': 'MinimalActivityPub/1.0',
-                        'Accept': 'application/activity+json',
-                        'Signature': `keyId="${this.baseUrl}/actor.json#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="${signature}"`
-                    };
-                } catch (error) {
-                    console.error('❌ Signing error:', error);
-                    return null;
-                }
-            }
-
+        try {
+            const urlObj = new URL(url);
+            const date = new Date().toUTCString();
+            
+            // SHA-256 Digest
+            const bodyBuffer = Buffer.from(body || '', 'utf8');
+            const digest = 'SHA-256=' + crypto.createHash('sha256').update(bodyBuffer).digest('base64');
+            
+            // Request Target
+            const requestTarget = `${method.toLowerCase()} ${urlObj.pathname}`;
+            
+            // Headers to sign
+            const headersToSign = [
+                `(request-target): ${requestTarget}`,
+                `host: ${urlObj.hostname}`,
+                `date: ${date}`,
+                `digest: ${digest}`,
+                `content-type: application/activity+json`
+            ];
+            
+            const stringToSign = headersToSign.join('\n');
+            
+       
+            const signature = crypto.sign('sha256', Buffer.from(stringToSign, 'utf8'), {
+                key: this.privateKey,
+                padding: crypto.constants.RSA_PKCS1_PADDING
+            }).toString('base64');
+            
+         
+            return {
+                'Host': urlObj.hostname,
+                'Date': date,
+                'Digest': digest,
+                'Content-Type': 'application/activity+json',
+                'User-Agent': 'ActivityPubServer/1.0',
+                'Accept': 'application/activity+json',
+                'Signature': `keyId="${this.baseUrl}/actor.json#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="${signature}"`
+            };
+        } catch (error) {
+            console.error('❌ Signing error:', error);
+            return null;
+        }
+    }
 
     async sendActivityToFollower(followerUrl, activity) {
         try {
@@ -342,8 +326,8 @@ class ActivityPubServer {
             // 1. Get follower's actor info
             const actorResponse = await fetch(followerUrl, {
                 headers: { 
-                    'Accept': 'application/activity+json',
-                    'User-Agent': 'MinimalActivityPub/1.0'
+                    'Accept': 'application/activity+json, application/ld+json',
+                    'User-Agent': 'ActivityPubServer/1.0'
                 }
             });
             
@@ -390,42 +374,58 @@ class ActivityPubServer {
         }
     }
 
-    async handleFollow(activity) {
-            try {
-                console.log(`👤 Processing Follow from: ${activity.actor}`);
+    async handleFollow(activity, blogPosts = [], wikiPages = []) {
+        try {
+            console.log(`👤 Processing Follow from: ${activity.actor}`);
+            console.log(`📊 Available content: ${blogPosts.length} blog posts, ${wikiPages.length} wiki pages`);
+            
+            // Add follower
+            this.followers.add(activity.actor);
+            await this.saveData();
+            
+            console.log(`✅ Added follower: ${activity.actor} (Total: ${this.followers.size})`);
+            
+            const acceptActivity = {
+                "@context": "https://www.w3.org/ns/activitystreams",
+                "type": "Accept",
+                "id": `${this.baseUrl}/activities/accept/${Date.now()}`,
+                "actor": `${this.baseUrl}/actor.json`,
+                "object": activity,
+                "to": [activity.actor],
+                "published": new Date().toISOString()
+            };
+            
+            // Send Accept activity
+            const sent = await this.sendActivityToFollower(activity.actor, acceptActivity);
+            
+            if (sent) {
+                console.log(`✅ Accept activity sent to ${activity.actor}`);
                 
-                // Add follower
-                this.followers.add(activity.actor);
-                await this.saveData();
+                // ✅ Sende sofort die aktuellen Posts nach erfolgreichem Accept
+                console.log(`📤 Sending recent posts to new follower: ${activity.actor}`);
                 
-                console.log(`✅ Added follower: ${activity.actor} (Total: ${this.followers.size})`);
+                // Verwende setTimeout, um sicherzustellen dass Accept verarbeitet wurde
+                setTimeout(async () => {
+                    try {
+                        await this.sendRecentPostsToNewFollower(activity.actor, blogPosts, wikiPages);
+                    } catch (error) {
+                        console.error(`❌ Error sending recent posts: ${error.message}`);
+                    }
+                }, 1000); // 1 Sekunde warten
                 
-                const acceptActivity = {
-                    "@context": "https://www.w3.org/ns/activitystreams",
-                    "type": "Accept",
-                    "id": `${this.baseUrl}/activities/accept/${Date.now()}`,
-                    "actor": `${this.baseUrl}/actor.json`,
-                    "object": activity,
-                    "to": [activity.actor],
-                    "published": new Date().toISOString()
-                };
-                
-                // Send Accept activity
-                const sent = await this.sendActivityToFollower(activity.actor, acceptActivity);
-                
-                if (sent) {
-                    console.log(`✅ Accept activity sent to ${activity.actor}`);
-                } else {
-                    console.log(`❌ Failed to send Accept activity to ${activity.actor}`);
-                }
-                
-                return { success: sent, acceptActivity };
-                
-            } catch (error) {
-                console.error('❌ Error handling Follow:', error);
-                throw error;
+            } else {
+                console.log(`❌ Failed to send Accept activity to ${activity.actor}`);
             }
+            
+            return { success: sent, acceptActivity };
+            
+        } catch (error) {
+            console.error('❌ Error handling Follow:', error);
+            throw error;
         }
+    }
+
+
     async handleUndo(activity) {
         try {
             if (activity.object?.type === 'Follow') {
@@ -451,7 +451,7 @@ class ActivityPubServer {
             "@context": "https://www.w3.org/ns/activitystreams",
             "type": "Create",
             "id": `${this.baseUrl}/activities/blog/${post.slug}`,
-            "actor": `${this.baseUrl}/actor`,
+            "actor": `${this.baseUrl}/actor.json`,                
             "published": new Date(post.date).toISOString(),
             "to": ["https://www.w3.org/ns/activitystreams#Public"],
             "cc": [`${this.baseUrl}/followers`],
@@ -463,7 +463,7 @@ class ActivityPubServer {
                 "content": post.content,
                 "summary": post.excerpt,
                 "published": new Date(post.date).toISOString(),
-                "attributedTo": `${this.baseUrl}/actor`,
+                "attributedTo": `${this.baseUrl}/actor.json`,     
                 "to": ["https://www.w3.org/ns/activitystreams#Public"],
                 "cc": [`${this.baseUrl}/followers`],
                 "mediaType": "text/html",
@@ -481,10 +481,7 @@ class ActivityPubServer {
                 const success = await this.sendActivityToFollower(followerUrl, createActivity);
                 if (success) {
                     successCount++;
-                } else {
-                    console.log(`❌ Failed to send to ${followerUrl}`);
                 }
-                
                 await new Promise(resolve => setTimeout(resolve, 100));
             } catch (error) {
                 console.error(`❌ Error broadcasting to ${followerUrl}:`, error);
@@ -494,107 +491,65 @@ class ActivityPubServer {
         console.log(`✅ [ACTIVITYPUB] Broadcast complete: ${successCount}/${this.followers.size} successful`);
     }
 
-    async broadcastNewWikiPage(page) {
-        if (this.followers.size === 0 || page.slug === 'home') {
-            return;
-        }
-
-        console.log(`📤 [ACTIVITYPUB] Broadcasting new wiki page "${page.title}" to ${this.followers.size} followers`);
-        
-        const createActivity = {
-            "@context": "https://www.w3.org/ns/activitystreams",
-            "type": "Create",
-            "id": `${this.baseUrl}/activities/wiki/${page.slug}`,
-            "actor": `${this.baseUrl}/actor`,
-            "published": new Date(page.lastModified).toISOString(),
-            "to": ["https://www.w3.org/ns/activitystreams#Public"],
-            "cc": [`${this.baseUrl}/followers`],
-            "object": {
-                "type": "Article",
-                "id": `${this.baseUrl}/wiki/${page.slug}`,
-                "url": `${this.baseUrl}/wiki/${page.slug}`,
-                "name": `📖 ${page.title}`,
-                "content": page.content,
-                "summary": page.description,
-                "published": new Date(page.lastModified).toISOString(),
-                "attributedTo": `${this.baseUrl}/actor`,
-                "to": ["https://www.w3.org/ns/activitystreams#Public"],
-                "cc": [`${this.baseUrl}/followers`],
-                "mediaType": "text/html",
-                "tag": [
-                    {
-                        "type": "Hashtag",
-                        "name": `#wiki`,
-                        "href": `${this.baseUrl}/wiki`
-                    },
-                    {
-                        "type": "Hashtag",
-                        "name": `#${page.category}`,
-                        "href": `${this.baseUrl}/wiki?category=${encodeURIComponent(page.category)}`
-                    },
-                    ...(page.tags || []).map(tag => ({
-                        "type": "Hashtag",
-                        "href": `${this.baseUrl}/wiki?tag=${encodeURIComponent(tag)}`,
-                        "name": `#${tag}`
-                    }))
-                ]
-            }
-        };
-
-        let successCount = 0;
-        for (const followerUrl of this.followers) {
-            try {
-                const success = await this.sendActivityToFollower(followerUrl, createActivity);
-                if (success) {
-                    successCount++;
-                }
-                
-                await new Promise(resolve => setTimeout(resolve, 100));
-            } catch (error) {
-                console.error(`❌ Error broadcasting wiki page to ${followerUrl}:`, error);
-            }
-        }
-        
-        console.log(`✅ [ACTIVITYPUB] Wiki broadcast complete: ${successCount}/${this.followers.size} successful`);
-    }
-
     async sendRecentPostsToNewFollower(followerUrl, blogPosts = [], wikiPages = []) {
         try {
-            console.log(`📤 [ACTIVITYPUB] Sending recent posts (blog + wiki) to new follower: ${followerUrl}`);
+            console.log(`📤 [ACTIVITYPUB] Starting content push to new follower: ${followerUrl}`);
+            console.log(`📊 [ACTIVITYPUB] Available: ${blogPosts.length} blog posts, ${wikiPages.length} wiki pages`);
             
-            // Blog Posts
-            const recentBlogPosts = blogPosts.slice(0, 3);
-            console.log(`📝 [ACTIVITYPUB] Sending ${recentBlogPosts.length} recent blog posts`);
-            
-            for (const post of recentBlogPosts) {
-                const createActivity = {
-                    "@context": "https://www.w3.org/ns/activitystreams",
-                    "type": "Create",
-                    "id": `${this.baseUrl}/activities/blog/${post.slug}`,
-                    "actor": `${this.baseUrl}/actor`,
-                    "published": new Date(post.date).toISOString(),
-                    "to": ["https://www.w3.org/ns/activitystreams#Public"],
-                    "cc": [followerUrl],
-                    "object": {
-                        "type": "Article",
-                        "id": `${this.baseUrl}/blog/${post.slug}`,
-                        "url": `${this.baseUrl}/blog/${post.slug}`,
-                        "name": post.title,
-                        "content": post.content,
-                        "summary": post.excerpt,
-                        "published": new Date(post.date).toISOString(),
-                        "attributedTo": `${this.baseUrl}/actor`,
-                        "to": ["https://www.w3.org/ns/activitystreams#Public"],
-                        "cc": [followerUrl],
-                        "mediaType": "text/html"
-                    }
-                };
-                
-                await this.sendActivityToFollower(followerUrl, createActivity);
-                await new Promise(resolve => setTimeout(resolve, 150));
+            if (blogPosts.length === 0 && wikiPages.length === 0) {
+                console.log(`⚠️ [ACTIVITYPUB] No content available to send to ${followerUrl}`);
+                return;
             }
             
-            // Wiki Pages (when enabled)
+            let sentCount = 0;
+            
+            // Send recent blog posts (last 3)
+            if (blogPosts.length > 0) {
+                const recentBlogPosts = blogPosts.slice(0, 3);
+                console.log(`📝 [ACTIVITYPUB] Sending ${recentBlogPosts.length} recent blog posts`);
+                
+                for (const post of recentBlogPosts) {
+                    console.log(`📝 [ACTIVITYPUB] Preparing blog post: "${post.title}" (${post.slug})`);
+                    
+                    const createActivity = {
+                        "@context": "https://www.w3.org/ns/activitystreams",
+                        "type": "Create",
+                        "id": `${this.baseUrl}/activities/blog/${post.slug}`,
+                        "actor": `${this.baseUrl}/actor.json`,
+                        "published": new Date(post.date).toISOString(),
+                        "to": ["https://www.w3.org/ns/activitystreams#Public"],
+                        "cc": [followerUrl],
+                        "object": {
+                            "type": "Article",
+                            "id": `${this.baseUrl}/blog/${post.slug}`,
+                            "url": `${this.baseUrl}/blog/${post.slug}`,
+                            "name": post.title,
+                            "content": post.content,
+                            "summary": post.excerpt,
+                            "published": new Date(post.date).toISOString(),
+                            "attributedTo": `${this.baseUrl}/actor.json`,
+                            "to": ["https://www.w3.org/ns/activitystreams#Public"],
+                            "cc": [followerUrl],
+                            "mediaType": "text/html"
+                        }
+                    };
+                    
+                    const success = await this.sendActivityToFollower(followerUrl, createActivity);
+                    if (success) {
+                        sentCount++;
+                        console.log(`✅ [ACTIVITYPUB] Sent blog post "${post.title}" to ${followerUrl}`);
+                    } else {
+                        console.log(`❌ [ACTIVITYPUB] Failed to send blog post "${post.title}" to ${followerUrl}`);
+                    }
+                    
+                    // Rate limiting
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+            } else {
+                console.log(`📝 [ACTIVITYPUB] No blog posts available to send`);
+            }
+            
+            // Send recent wiki pages (if enabled)
             const includeWiki = process.env.INCLUDE_WIKI_IN_ACTIVITYPUB !== 'false';
             if (includeWiki && wikiPages.length > 0) {
                 const recentWikiPages = wikiPages
@@ -604,11 +559,13 @@ class ActivityPubServer {
                 console.log(`📖 [ACTIVITYPUB] Sending ${recentWikiPages.length} recent wiki pages`);
                 
                 for (const page of recentWikiPages) {
+                    console.log(`📖 [ACTIVITYPUB] Preparing wiki page: "${page.title}" (${page.slug})`);
+                    
                     const createActivity = {
                         "@context": "https://www.w3.org/ns/activitystreams",
                         "type": "Create",
                         "id": `${this.baseUrl}/activities/wiki/${page.slug}`,
-                        "actor": `${this.baseUrl}/actor`,
+                        "actor": `${this.baseUrl}/actor.json`,
                         "published": new Date(page.lastModified).toISOString(),
                         "to": ["https://www.w3.org/ns/activitystreams#Public"],
                         "cc": [followerUrl],
@@ -620,41 +577,35 @@ class ActivityPubServer {
                             "content": page.content,
                             "summary": page.description || `Wiki page: ${page.title}`,
                             "published": new Date(page.lastModified).toISOString(),
-                            "attributedTo": `${this.baseUrl}/actor`,
+                            "attributedTo": `${this.baseUrl}/actor.json`,
                             "to": ["https://www.w3.org/ns/activitystreams#Public"],
                             "cc": [followerUrl],
-                            "mediaType": "text/html",
-                            "tag": [
-                                {
-                                    "type": "Hashtag",
-                                    "name": `#wiki`,
-                                    "href": `${this.baseUrl}/wiki`
-                                },
-                                {
-                                    "type": "Hashtag",
-                                    "name": `#${page.category}`,
-                                    "href": `${this.baseUrl}/wiki?category=${encodeURIComponent(page.category)}`
-                                },
-                                ...(page.tags || []).map(tag => ({
-                                    "type": "Hashtag",
-                                    "href": `${this.baseUrl}/wiki?tag=${encodeURIComponent(tag)}`,
-                                    "name": `#${tag}`
-                                }))
-                            ]
+                            "mediaType": "text/html"
                         }
                     };
                     
-                    await this.sendActivityToFollower(followerUrl, createActivity);
-                    await new Promise(resolve => setTimeout(resolve, 150));
+                    const success = await this.sendActivityToFollower(followerUrl, createActivity);
+                    if (success) {
+                        sentCount++;
+                        console.log(`✅ [ACTIVITYPUB] Sent wiki page "${page.title}" to ${followerUrl}`);
+                    } else {
+                        console.log(`❌ [ACTIVITYPUB] Failed to send wiki page "${page.title}" to ${followerUrl}`);
+                    }
+                    
+                    // Rate limiting
+                    await new Promise(resolve => setTimeout(resolve, 300));
                 }
+            } else if (includeWiki) {
+                console.log(`📖 [ACTIVITYPUB] No wiki pages available to send`);
+            } else {
+                console.log(`📖 [ACTIVITYPUB] Wiki sharing disabled`);
             }
             
-            console.log(`✅ [ACTIVITYPUB] Sent recent content (blog + wiki) to ${followerUrl}`);
+            console.log(`✅ [ACTIVITYPUB] Content push completed: ${sentCount} items sent to ${followerUrl}`);
             
         } catch (error) {
-            console.error(`❌ Error sending recent posts to ${followerUrl}:`, error);
+            console.error(`❌ [ACTIVITYPUB] Error sending recent posts to ${followerUrl}:`, error);
         }
     }
-}
-
+ }
 module.exports = { ActivityPubServer };

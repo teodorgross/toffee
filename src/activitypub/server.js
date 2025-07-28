@@ -152,7 +152,7 @@ class ActivityPubServer {
             "outbox": `${this.baseUrl}/outbox.json`,              
             "followers": `${this.baseUrl}/followers.json`,        
             "following": `${this.baseUrl}/following.json`,        
-            "inbox": `${this.baseUrl}/inbox.json`,
+            "inbox": `${this.baseUrl}/inbox`,
             "icon": {
                 "type": "Image",
                 "mediaType": "image/jpeg",
@@ -374,8 +374,8 @@ class ActivityPubServer {
         }
     }
 
-    async handleFollow(activity, blogPosts = [], wikiPages = []) {
-        try {
+    async handleFollow(activity) {
+         try {
             console.log(`👤 Processing Follow from: ${activity.actor}`);
             console.log(`📊 Available content: ${blogPosts.length} blog posts, ${wikiPages.length} wiki pages`);
             
@@ -424,7 +424,6 @@ class ActivityPubServer {
             throw error;
         }
     }
-
 
     async handleUndo(activity) {
         try {
@@ -493,63 +492,47 @@ class ActivityPubServer {
 
     async sendRecentPostsToNewFollower(followerUrl, blogPosts = [], wikiPages = []) {
         try {
-            console.log(`📤 [ACTIVITYPUB] Starting content push to new follower: ${followerUrl}`);
-            console.log(`📊 [ACTIVITYPUB] Available: ${blogPosts.length} blog posts, ${wikiPages.length} wiki pages`);
+            console.log(`📤 [ACTIVITYPUB] Sending recent posts to new follower: ${followerUrl}`);
             
-            if (blogPosts.length === 0 && wikiPages.length === 0) {
-                console.log(`⚠️ [ACTIVITYPUB] No content available to send to ${followerUrl}`);
-                return;
-            }
+            // Recent blog posts (last 3)
+            const recentBlogPosts = blogPosts.slice(0, 3);
+            console.log(`📝 [ACTIVITYPUB] Sending ${recentBlogPosts.length} recent blog posts`);
             
-            let sentCount = 0;
-            
-            // Send recent blog posts (last 3)
-            if (blogPosts.length > 0) {
-                const recentBlogPosts = blogPosts.slice(0, 3);
-                console.log(`📝 [ACTIVITYPUB] Sending ${recentBlogPosts.length} recent blog posts`);
-                
-                for (const post of recentBlogPosts) {
-                    console.log(`📝 [ACTIVITYPUB] Preparing blog post: "${post.title}" (${post.slug})`);
-                    
-                    const createActivity = {
-                        "@context": "https://www.w3.org/ns/activitystreams",
-                        "type": "Create",
-                        "id": `${this.baseUrl}/activities/blog/${post.slug}`,
-                        "actor": `${this.baseUrl}/actor.json`,
+            for (const post of recentBlogPosts) {
+                const createActivity = {
+                    "@context": "https://www.w3.org/ns/activitystreams",
+                    "type": "Create",
+                    "id": `${this.baseUrl}/activities/blog/${post.slug}`,
+                    "actor": `${this.baseUrl}/actor.json`,        
+                    "published": new Date(post.date).toISOString(),
+                    "to": ["https://www.w3.org/ns/activitystreams#Public"],
+                    "cc": [followerUrl],
+                    "object": {
+                        "type": "Article",
+                        "id": `${this.baseUrl}/blog/${post.slug}`,
+                        "url": `${this.baseUrl}/blog/${post.slug}`,
+                        "name": post.title,
+                        "content": post.content,
+                        "summary": post.excerpt,
                         "published": new Date(post.date).toISOString(),
+                        "attributedTo": `${this.baseUrl}/actor.json`, 
                         "to": ["https://www.w3.org/ns/activitystreams#Public"],
                         "cc": [followerUrl],
-                        "object": {
-                            "type": "Article",
-                            "id": `${this.baseUrl}/blog/${post.slug}`,
-                            "url": `${this.baseUrl}/blog/${post.slug}`,
-                            "name": post.title,
-                            "content": post.content,
-                            "summary": post.excerpt,
-                            "published": new Date(post.date).toISOString(),
-                            "attributedTo": `${this.baseUrl}/actor.json`,
-                            "to": ["https://www.w3.org/ns/activitystreams#Public"],
-                            "cc": [followerUrl],
-                            "mediaType": "text/html"
-                        }
-                    };
-                    
-                    const success = await this.sendActivityToFollower(followerUrl, createActivity);
-                    if (success) {
-                        sentCount++;
-                        console.log(`✅ [ACTIVITYPUB] Sent blog post "${post.title}" to ${followerUrl}`);
-                    } else {
-                        console.log(`❌ [ACTIVITYPUB] Failed to send blog post "${post.title}" to ${followerUrl}`);
+                        "mediaType": "text/html"
                     }
-                    
-                    // Rate limiting
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                };
+                
+                const success = await this.sendActivityToFollower(followerUrl, createActivity);
+                if (success) {
+                    console.log(`✅ Sent blog post "${post.title}" to ${followerUrl}`);
+                } else {
+                    console.log(`❌ Failed to send blog post "${post.title}" to ${followerUrl}`);
                 }
-            } else {
-                console.log(`📝 [ACTIVITYPUB] No blog posts available to send`);
+                
+                await new Promise(resolve => setTimeout(resolve, 200)); // Rate limiting
             }
             
-            // Send recent wiki pages (if enabled)
+
             const includeWiki = process.env.INCLUDE_WIKI_IN_ACTIVITYPUB !== 'false';
             if (includeWiki && wikiPages.length > 0) {
                 const recentWikiPages = wikiPages
@@ -559,13 +542,11 @@ class ActivityPubServer {
                 console.log(`📖 [ACTIVITYPUB] Sending ${recentWikiPages.length} recent wiki pages`);
                 
                 for (const page of recentWikiPages) {
-                    console.log(`📖 [ACTIVITYPUB] Preparing wiki page: "${page.title}" (${page.slug})`);
-                    
                     const createActivity = {
                         "@context": "https://www.w3.org/ns/activitystreams",
                         "type": "Create",
                         "id": `${this.baseUrl}/activities/wiki/${page.slug}`,
-                        "actor": `${this.baseUrl}/actor.json`,
+                        "actor": `${this.baseUrl}/actor.json`,    
                         "published": new Date(page.lastModified).toISOString(),
                         "to": ["https://www.w3.org/ns/activitystreams#Public"],
                         "cc": [followerUrl],
@@ -577,7 +558,7 @@ class ActivityPubServer {
                             "content": page.content,
                             "summary": page.description || `Wiki page: ${page.title}`,
                             "published": new Date(page.lastModified).toISOString(),
-                            "attributedTo": `${this.baseUrl}/actor.json`,
+                            "attributedTo": `${this.baseUrl}/actor.json`, 
                             "to": ["https://www.w3.org/ns/activitystreams#Public"],
                             "cc": [followerUrl],
                             "mediaType": "text/html"
@@ -586,26 +567,21 @@ class ActivityPubServer {
                     
                     const success = await this.sendActivityToFollower(followerUrl, createActivity);
                     if (success) {
-                        sentCount++;
-                        console.log(`✅ [ACTIVITYPUB] Sent wiki page "${page.title}" to ${followerUrl}`);
+                        console.log(`✅ Sent wiki page "${page.title}" to ${followerUrl}`);
                     } else {
-                        console.log(`❌ [ACTIVITYPUB] Failed to send wiki page "${page.title}" to ${followerUrl}`);
+                        console.log(`❌ Failed to send wiki page "${page.title}" to ${followerUrl}`);
                     }
                     
-                    // Rate limiting
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                    await new Promise(resolve => setTimeout(resolve, 200)); // Rate limiting
                 }
-            } else if (includeWiki) {
-                console.log(`📖 [ACTIVITYPUB] No wiki pages available to send`);
-            } else {
-                console.log(`📖 [ACTIVITYPUB] Wiki sharing disabled`);
             }
             
-            console.log(`✅ [ACTIVITYPUB] Content push completed: ${sentCount} items sent to ${followerUrl}`);
+            console.log(`✅ [ACTIVITYPUB] Finished sending recent content to ${followerUrl}`);
             
         } catch (error) {
-            console.error(`❌ [ACTIVITYPUB] Error sending recent posts to ${followerUrl}:`, error);
+            console.error(`❌ Error sending recent posts to ${followerUrl}:`, error);
         }
     }
- }
+}
+
 module.exports = { ActivityPubServer };

@@ -374,8 +374,8 @@ class ActivityPubServer {
         }
     }
 
-    async handleFollow(activity) {
-         try {
+    async handleFollow(activity, blogPosts = [], wikiPages = []) {
+        try {
             console.log(`👤 Processing Follow from: ${activity.actor}`);
             console.log(`📊 Available content: ${blogPosts.length} blog posts, ${wikiPages.length} wiki pages`);
             
@@ -401,17 +401,17 @@ class ActivityPubServer {
             if (sent) {
                 console.log(`✅ Accept activity sent to ${activity.actor}`);
                 
-                // ✅ Sende sofort die aktuellen Posts nach erfolgreichem Accept
+                // Send recent posts to new follower
                 console.log(`📤 Sending recent posts to new follower: ${activity.actor}`);
                 
-                // Verwende setTimeout, um sicherzustellen dass Accept verarbeitet wurde
+                // Use setTimeout to ensure Accept was processed
                 setTimeout(async () => {
                     try {
                         await this.sendRecentPostsToNewFollower(activity.actor, blogPosts, wikiPages);
                     } catch (error) {
                         console.error(`❌ Error sending recent posts: ${error.message}`);
                     }
-                }, 1000); // 1 Sekunde warten
+                }, 1000); // Wait 1 second
                 
             } else {
                 console.log(`❌ Failed to send Accept activity to ${activity.actor}`);

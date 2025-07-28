@@ -155,8 +155,8 @@ class ActivityPubServer {
             "inbox": `${this.baseUrl}/inbox`,
             "icon": {
                 "type": "Image",
-                "mediaType": "image/jpeg",
-                "url": `${this.baseUrl}/assets/img/avatar.jpg`
+                "mediaType": "image/png",
+                "url": `${this.baseUrl}/assets/img/Image.png`
             },
             "publicKey": {
                 "id": `${this.baseUrl}/actor.json#main-key`,       

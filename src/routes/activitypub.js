@@ -218,7 +218,7 @@ function setupActivityPubRoutes(app, activityPubServer) {
             "home_page_url": activityPubServer.baseUrl,
             "feed_url": `${activityPubServer.baseUrl}/feed.json`,
             "description": activityPubServer.description,
-            "icon": `${activityPubServer.baseUrl}/assets/img/avatar.jpg`,
+            "icon": `${activityPubServer.baseUrl}/assets/img/Image.png`,
             "authors": [{
                 "name": activityPubServer.displayName,
                 "url": activityPubServer.baseUrl

@@ -109,11 +109,7 @@ class ActivityPubServer {
                     "type": "application/activity+json",
                     "href": `${this.baseUrl}/actor.json`
                 },
-                {
-                    "rel": "alternate",
-                    "type": "application/activity+json", 
-                    "href": `${this.baseUrl}/actor`
-                },
+                
                 {
                     "rel": "http://webfinger.net/rel/profile-page",
                     "type": "text/html",
@@ -146,7 +142,7 @@ class ActivityPubServer {
             },
             "publicKey": {
                 "id": `${this.baseUrl}/actor#main-key`,
-                "owner": `${this.baseUrl}/actor`,
+                "owner": `${this.baseUrl}/actor.json`,
                 "publicKeyPem": this.publicKey
             },
             "manuallyApprovesFollowers": false,

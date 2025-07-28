@@ -322,6 +322,7 @@ class ActivityPubServer {
     async sendActivityToFollower(followerUrl, activity) {
         try {
             console.log(`📤 Sending activity to ${followerUrl}`);
+            console.log(`📤 Activity type: ${activity.type}`);
 
             // 1. Get follower's actor info
             const actorResponse = await fetch(followerUrl, {
@@ -332,7 +333,7 @@ class ActivityPubServer {
             });
             
             if (!actorResponse.ok) {
-                console.error(`❌ Failed to fetch actor: ${actorResponse.status}`);
+                console.error(`❌ Failed to fetch actor: ${actorResponse.status} ${actorResponse.statusText}`);
                 return false;
             }
             
@@ -340,18 +341,27 @@ class ActivityPubServer {
             const inboxUrl = actorData.inbox;
             
             if (!inboxUrl) {
-                console.error(`❌ No inbox found`);
+                console.error(`❌ No inbox found in actor data`);
+                console.error(`Actor data:`, JSON.stringify(actorData, null, 2));
                 return false;
             }
 
+            console.log(`📤 Inbox URL: ${inboxUrl}`);
+
             // 2. Sign and send activity
-            const body = JSON.stringify(activity, null, 0); // No formatting!
+            const body = JSON.stringify(activity, null, 0);
+            console.log(`📤 Activity body length: ${body.length} chars`);
+            
             const headers = this.signRequest('POST', inboxUrl, body);
             
             if (!headers) {
-                console.error(`❌ Failed to sign request`);
+                console.error(`❌ Failed to sign request - no private key?`);
+                console.error(`❌ Private key exists: ${!!this.privateKey}`);
                 return false;
             }
+
+            console.log(`📤 Signed headers:`, Object.keys(headers));
+            console.log(`📤 Signature header:`, headers.Signature ? 'Present' : 'Missing');
 
             const response = await fetch(inboxUrl, {
                 method: 'POST',
@@ -363,13 +373,24 @@ class ActivityPubServer {
             
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`❌ Error response: ${errorText}`);
+                console.error(`❌ Error response from ${inboxUrl}:`);
+                console.error(`❌ Status: ${response.status}`);
+                console.error(`❌ Body: ${errorText}`);
+                
+                // Spezielle Mastodon-Fehler loggen
+                if (errorText.includes('signature')) {
+                    console.error(`❌ SIGNATURE VERIFICATION FAILED!`);
+                    console.error(`❌ This means the receiving server rejected our signature`);
+                }
+            } else {
+                console.log(`✅ Activity successfully delivered to ${followerUrl}`);
             }
             
             return response.ok;
             
         } catch (error) {
-            console.error(`❌ Send error:`, error);
+            console.error(`❌ Send error to ${followerUrl}:`, error.message);
+            console.error(`❌ Stack trace:`, error.stack);
             return false;
         }
     }

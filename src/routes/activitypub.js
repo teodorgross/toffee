@@ -16,19 +16,29 @@ function setupActivityPubRoutes(app, activityPubServer) {
         }
     });
 
-    // Actor - Both variants
-    app.get('/actor', (req, res) => {
-        console.log(`[ACTIVITYPUB] Actor request from ${req.get('User-Agent') || 'Unknown'}`);
-        res.set('Content-Type', 'application/activity+json; charset=utf-8');
-        res.json(activityPubServer.generateActor());
-    });
-
-    app.get('/actor.json', (req, res) => {
+    app.get('/actor.json', async (req, res) => {
         console.log(`[ACTIVITYPUB] Actor.json request from ${req.get('User-Agent') || 'Unknown'}`);
         res.set('Content-Type', 'application/activity+json; charset=utf-8');
-        res.json(activityPubServer.generateActor());
+        
+        const actor = await activityPubServer.generateActor();
+        if (!actor) {
+            return res.status(503).json({ error: 'Server not ready' });
+        }
+        
+        res.json(actor);
     });
 
+    app.get('/actor', async (req, res) => {
+        console.log(`[ACTIVITYPUB] Actor request from ${req.get('User-Agent') || 'Unknown'}`);
+        res.set('Content-Type', 'application/activity+json; charset=utf-8');
+        
+        const actor = await activityPubServer.generateActor();
+        if (!actor) {
+            return res.status(503).json({ error: 'Server not ready' });
+        }
+        
+        res.json(actor);
+    });
     // Outbox - Both variants
     app.get('/outbox', (req, res) => {
         console.log(`[ACTIVITYPUB] Outbox request from ${req.get('User-Agent') || 'Unknown'}`);

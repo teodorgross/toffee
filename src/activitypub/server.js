@@ -19,7 +19,7 @@ class ActivityPubServer {
         this.following = new Set();
         this.activities = [];
         
-        this.initialize();
+        this.initializationPromise = this.initialize();
     }
 
     async initialize() {
@@ -32,6 +32,12 @@ class ActivityPubServer {
                 await this.loadKeys();
             });
         }
+        
+        console.log('✅ [ACTIVITYPUB] Server initialization complete');
+    }
+
+    async ensureInitialized() {
+        await this.initializationPromise;
     }
 
     async loadKeys() {
@@ -175,7 +181,9 @@ class ActivityPubServer {
         };
     }
 
-    generateActor() {
+    async generateActor() {
+        await this.ensureInitialized();
+        
         if (!this.areKeysAvailable()) {
             console.error('❌ [ACTIVITYPUB] Cannot generate actor - keys not available');
             return null;

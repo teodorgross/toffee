@@ -162,7 +162,7 @@ class ActivityPubServer {
                 "url": `${this.baseUrl}/assets/img/avatar.jpg`
             },
             "publicKey": {
-                "id": `${this.baseUrl}/actor#main-key`,
+                "id": `${this.baseUrl}/actor.json#main-key`,
                 "owner": `${this.baseUrl}/actor.json`,
                 "publicKeyPem": this.publicKey
             },
@@ -179,7 +179,7 @@ class ActivityPubServer {
         const blogActivities = blogPosts.map(post => ({
             "type": "Create",
             "id": `${this.baseUrl}/activities/blog/${post.slug}`,
-            "actor": `${this.baseUrl}/actor`,
+            "actor": `${this.baseUrl}/actor.json`,
             "published": new Date(post.date).toISOString(),
             "to": ["https://www.w3.org/ns/activitystreams#Public"],
             "cc": [`${this.baseUrl}/followers`],
@@ -191,7 +191,7 @@ class ActivityPubServer {
                 "content": post.content,
                 "summary": post.excerpt,
                 "published": new Date(post.date).toISOString(),
-                "attributedTo": `${this.baseUrl}/actor`,
+                "attributedTo": `${this.baseUrl}/actor.json`,
                 "to": ["https://www.w3.org/ns/activitystreams#Public"],
                 "cc": [`${this.baseUrl}/followers`],
                 "mediaType": "text/html",
@@ -219,7 +219,7 @@ class ActivityPubServer {
                 return {
                     "type": "Create",
                     "id": `${this.baseUrl}/activities/wiki/${page.slug}`,
-                    "actor": `${this.baseUrl}/actor`,
+                    "actor": `${this.baseUrl}/actor.json`,
                     "published": new Date(page.lastModified).toISOString(),
                     "to": ["https://www.w3.org/ns/activitystreams#Public"],
                     "cc": [`${this.baseUrl}/followers`],
@@ -231,7 +231,7 @@ class ActivityPubServer {
                         "content": page.content,
                         "summary": page.description || `Wiki page: ${page.title}`,
                         "published": new Date(page.lastModified).toISOString(),
-                        "attributedTo": `${this.baseUrl}/actor`,
+                        "attributedTo": `${this.baseUrl}/actor.json`,
                         "to": ["https://www.w3.org/ns/activitystreams#Public"],
                         "cc": [`${this.baseUrl}/followers`],
                         "mediaType": "text/html",

@@ -11,8 +11,9 @@
 ![GitHub top language](https://img.shields.io/github/languages/top/teodorgross/toffee)
 ![GitHub last commit](https://img.shields.io/github/last-commit/teodorgross/toffee?color=red)
 
-A complete blog and wiki server with native ActivityPub support that automatically shares your content in the Fediverse (Mastodon, Pleroma, etc.).
 
+A complete blog and wiki server with native ActivityPub support that automatically shares your content in the Fediverse (Mastodon, Pleroma, etc.).
+DEMO: (https://teodorgross.eu)
 ## 🚀 Quick Installation
 
 ### Prerequisites

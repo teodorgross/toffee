@@ -159,45 +159,107 @@ class ActivityPubKeyManager {
         }
     }
 
-    /**
-     * FIXED: Separate method for env file updates with atomic writes
-     */
     async updateEnvFile(publicKey) {
-        let envContent = '';
         try {
-            envContent = await fs.readFile(this.envPath, 'utf8');
-        } catch (error) {
-            envContent = '# Environment Variables\n';
-        }
+            // Add retry mechanism for race conditions
+            const maxRetries = 3;
+            let attempt = 0;
+            
+            while (attempt < maxRetries) {
+                try {
+                    let envContent = '';
+                    try {
+                        envContent = await fs.readFile(this.envPath, 'utf8');
+                    } catch (error) {
+                        envContent = '# Environment Variables\n';
+                    }
 
-        const lines = envContent.split('\n');
-        const newLines = [];
-        let foundPublicKey = false;
+                    const lines = envContent.split('\n');
+                    const newLines = [];
+                    let foundPublicKey = false;
 
-        for (const line of lines) {
-            if (line.startsWith('ACTIVITYPUB_PUBLIC_KEY=')) {
-                newLines.push(`ACTIVITYPUB_PUBLIC_KEY="${publicKey.replace(/\n/g, '\\n')}"`);
-                foundPublicKey = true;
-            } else if (line.startsWith('INCLUDE_WIKI_IN_ACTIVITYPUB=')) {
-                newLines.push('INCLUDE_WIKI_IN_ACTIVITYPUB=true');
-            } else {
-                newLines.push(line);
+                    for (const line of lines) {
+                        if (line.startsWith('ACTIVITYPUB_PUBLIC_KEY=')) {
+                            newLines.push(`ACTIVITYPUB_PUBLIC_KEY="${publicKey.replace(/\n/g, '\\n')}"`);
+                            foundPublicKey = true;
+                        } else if (line.startsWith('INCLUDE_WIKI_IN_ACTIVITYPUB=')) {
+                            newLines.push('INCLUDE_WIKI_IN_ACTIVITYPUB=true');
+                        } else {
+                            newLines.push(line);
+                        }
+                    }
+
+                    if (!foundPublicKey) {
+                        newLines.push('');
+                        newLines.push('# ActivityPub Keys');
+                        newLines.push(`ACTIVITYPUB_PUBLIC_KEY="${publicKey.replace(/\n/g, '\\n')}"`);
+                        newLines.push('');
+                        newLines.push('# ActivityPub Settings');
+                        newLines.push('INCLUDE_WIKI_IN_ACTIVITYPUB=true');
+                    }
+
+                    const tempEnvPath = this.envPath + '.tmp.' + Date.now() + '.' + Math.random().toString(36).substr(2, 9);
+                    await fs.writeFile(tempEnvPath, newLines.join('\n'));
+                    
+                    // Use fs.move with overwrite option
+                    await fs.move(tempEnvPath, this.envPath, { overwrite: true });
+                    
+                    console.log('✅ [ACTIVITYPUB] Environment file updated successfully');
+                    return; // Success, exit retry loop
+                    
+                } catch (moveError) {
+                    attempt++;
+                    console.warn(`⚠️ [ACTIVITYPUB] Attempt ${attempt} to update .env failed:`, moveError.message);
+                    
+                    if (attempt >= maxRetries) {
+                        console.log('🔄 [ACTIVITYPUB] Falling back to direct write...');
+                        
+                        let envContent = '';
+                        try {
+                            envContent = await fs.readFile(this.envPath, 'utf8');
+                        } catch (error) {
+                            envContent = '# Environment Variables\n';
+                        }
+
+                        const lines = envContent.split('\n');
+                        const newLines = [];
+                        let foundPublicKey = false;
+
+                        for (const line of lines) {
+                            if (line.startsWith('ACTIVITYPUB_PUBLIC_KEY=')) {
+                                newLines.push(`ACTIVITYPUB_PUBLIC_KEY="${publicKey.replace(/\n/g, '\\n')}"`);
+                                foundPublicKey = true;
+                            } else if (line.startsWith('INCLUDE_WIKI_IN_ACTIVITYPUB=')) {
+                                newLines.push('INCLUDE_WIKI_IN_ACTIVITYPUB=true');
+                            } else {
+                                newLines.push(line);
+                            }
+                        }
+
+                        if (!foundPublicKey) {
+                            newLines.push('');
+                            newLines.push('# ActivityPub Keys');
+                            newLines.push(`ACTIVITYPUB_PUBLIC_KEY="${publicKey.replace(/\n/g, '\\n')}"`);
+                            newLines.push('');
+                            newLines.push('# ActivityPub Settings');
+                            newLines.push('INCLUDE_WIKI_IN_ACTIVITYPUB=true');
+                        }
+
+                        // Direct write as fallback
+                        await fs.writeFile(this.envPath, newLines.join('\n'));
+                        console.log('✅ [ACTIVITYPUB] Environment file updated via fallback method');
+                        return;
+                    } else {
+                        // Wait before retry
+                        await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+                    }
+                }
             }
+        } catch (error) {
+            console.error('❌ [ACTIVITYPUB] Critical error updating environment file:', error);
+            throw error;
         }
-
-        if (!foundPublicKey) {
-            newLines.push('');
-            newLines.push('# ActivityPub Keys');
-            newLines.push(`ACTIVITYPUB_PUBLIC_KEY="${publicKey.replace(/\n/g, '\\n')}"`);
-            newLines.push('');
-            newLines.push('# ActivityPub Settings');
-            newLines.push('INCLUDE_WIKI_IN_ACTIVITYPUB=true');
-        }
-        const tempEnvPath = this.envPath + '.tmp';
-        await fs.writeFile(tempEnvPath, newLines.join('\n'));
-        await fs.move(tempEnvPath, this.envPath);
     }
-
     /**
      * Forces complete key regeneration and refresh
      */

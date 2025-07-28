@@ -6,8 +6,9 @@ class ActivityPubKeyManager {
     constructor() {
         this.envPath = path.join(__dirname, '../../.env');
         this.dataDir = path.join(__dirname, '../../activitypub-data');
+        this.privateKeyFile = path.join(this.dataDir, 'private-key.pem');
         this.keysExist = this.checkKeysExist();
-        this.refreshCallbacks = []; // Callbacks to execute after successful refresh
+        this.refreshCallbacks = [];
     }
 
     checkKeysExist() {
@@ -15,15 +16,10 @@ class ActivityPubKeyManager {
                process.env.ACTIVITYPUB_PUBLIC_KEY.includes('BEGIN PUBLIC KEY');
     }
 
-    /**
-     * Refreshes environment variables by re-reading the .env file
-     * and updating process.env accordingly
-     */
+
     async refreshEnvironment() {
         try {
             console.log('🔄 [ACTIVITYPUB] Refreshing environment variables...');
-            
-            // Re-read the .env file
             if (await fs.pathExists(this.envPath)) {
                 const envContent = await fs.readFile(this.envPath, 'utf8');
                 const lines = envContent.split('\n');
@@ -33,14 +29,10 @@ class ActivityPubKeyManager {
                     if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
                         const [key, ...valueParts] = trimmed.split('=');
                         let value = valueParts.join('=');
-                        
-                        // Remove quotes if present
                         if ((value.startsWith('"') && value.endsWith('"')) || 
                             (value.startsWith("'") && value.endsWith("'"))) {
                             value = value.slice(1, -1);
                         }
-                        
-                        // Convert escaped newlines back to actual newlines for the public key
                         if (key === 'ACTIVITYPUB_PUBLIC_KEY') {
                             value = value.replace(/\\n/g, '\n');
                         }
@@ -49,14 +41,10 @@ class ActivityPubKeyManager {
                     }
                 }
             }
-            
-            // Update internal state
             const oldKeysExist = this.keysExist;
             this.keysExist = this.checkKeysExist();
             
             console.log(`✅ [ACTIVITYPUB] Environment refreshed. Keys exist: ${this.keysExist}`);
-            
-            // If keys now exist but didn't before, execute callbacks
             if (this.keysExist && !oldKeysExist) {
                 console.log('🎉 [ACTIVITYPUB] Keys are now available, executing refresh callbacks...');
                 await this.executeRefreshCallbacks();
@@ -93,11 +81,11 @@ class ActivityPubKeyManager {
     }
 
     async generateKeysIfNeeded(force = false) {
-        if (force || !this.keysExist) {
+        const privateKeyExists = await fs.pathExists(this.privateKeyFile);
+        
+        if (force || !this.keysExist || !privateKeyExists) {
             console.log('🔑 [ACTIVITYPUB] Generating new RSA key pair...');
             await this.generateAndSaveKeys();
-            
-            // Automatically refresh environment after key generation
             await this.refreshEnvironment();
         } else {
             console.log('🔑 [ACTIVITYPUB] Keys already exist');
@@ -106,6 +94,8 @@ class ActivityPubKeyManager {
 
     async generateAndSaveKeys() {
         try {
+            await this.cleanupOldKeys();
+
             const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
                 modulusLength: 2048,
                 publicKeyEncoding: {
@@ -117,58 +107,95 @@ class ActivityPubKeyManager {
                     format: 'pem'
                 }
             });
-
-            // Ensure data directory exists
             await fs.ensureDir(this.dataDir);
-
-            // Save private key to file
-            const privateKeyFile = path.join(this.dataDir, `private-key-${Date.now()}.pem`);
-            await fs.writeFile(privateKeyFile, privateKey);
-            await fs.chmod(privateKeyFile, '600');
-
-            // Update .env file with public key
-            let envContent = '';
-            try {
-                envContent = await fs.readFile(this.envPath, 'utf8');
-            } catch (error) {
-                envContent = '# Environment Variables\n';
+            const existingPrivateKey = await fs.pathExists(this.privateKeyFile) ? 
+                await fs.readFile(this.privateKeyFile, 'utf8') : null;
+            
+            if (!existingPrivateKey || existingPrivateKey !== privateKey) {
+                const tempFile = this.privateKeyFile + '.tmp';
+                await fs.writeFile(tempFile, privateKey);
+                await fs.chmod(tempFile, '600');
+                await fs.move(tempFile, this.privateKeyFile);
+                console.log(`🔑 [ACTIVITYPUB] Private key saved: ${this.privateKeyFile}`);
+            } else {
+                console.log('🔑 [ACTIVITYPUB] Private key unchanged, skipping write');
             }
+            await this.updateEnvFile(publicKey);
 
-            const lines = envContent.split('\n');
-            const newLines = [];
-            let foundPublicKey = false;
-
-            for (const line of lines) {
-                if (line.startsWith('ACTIVITYPUB_PUBLIC_KEY=')) {
-                    newLines.push(`ACTIVITYPUB_PUBLIC_KEY="${publicKey.replace(/\n/g, '\\n')}"`);
-                    foundPublicKey = true;
-                } else if (line.startsWith('INCLUDE_WIKI_IN_ACTIVITYPUB=')) {
-                    newLines.push('INCLUDE_WIKI_IN_ACTIVITYPUB=true');
-                } else {
-                    newLines.push(line);
-                }
-            }
-
-            if (!foundPublicKey) {
-                newLines.push('');
-                newLines.push('# ActivityPub Keys');
-                newLines.push(`ACTIVITYPUB_PUBLIC_KEY="${publicKey.replace(/\n/g, '\\n')}"`);
-                newLines.push('');
-                newLines.push('# ActivityPub Settings');
-                newLines.push('INCLUDE_WIKI_IN_ACTIVITYPUB=true');
-            }
-
-            await fs.writeFile(this.envPath, newLines.join('\n'));
-
-            console.log('✅ [ACTIVITYPUB] Keys generated and saved to .env file');
-            console.log(`🔑 [ACTIVITYPUB] Private key: ${privateKeyFile}`);
-
+            console.log('✅ [ACTIVITYPUB] Keys generated and saved');
             return { publicKey, privateKey };
 
         } catch (error) {
             console.error('❌ [ACTIVITYPUB] Error generating keys:', error);
             throw error;
         }
+    }
+
+    /**
+     * FIXED: Cleanup old timestamped key files
+     */
+    async cleanupOldKeys() {
+        try {
+            if (await fs.pathExists(this.dataDir)) {
+                const files = await fs.readdir(this.dataDir);
+                const oldKeyFiles = files.filter(file => 
+                    file.startsWith('private-key-') && 
+                    file.endsWith('.pem') && 
+                    file !== 'private-key.pem' // Keep the new fixed filename
+                );
+
+                for (const file of oldKeyFiles) {
+                    const filePath = path.join(this.dataDir, file);
+                    await fs.remove(filePath);
+                    console.log(`🧹 [ACTIVITYPUB] Removed old key file: ${file}`);
+                }
+
+                if (oldKeyFiles.length > 0) {
+                    console.log(`🧹 [ACTIVITYPUB] Cleaned up ${oldKeyFiles.length} old key files`);
+                }
+            }
+        } catch (error) {
+            console.warn('⚠️ [ACTIVITYPUB] Could not cleanup old keys:', error.message);
+        }
+    }
+
+    /**
+     * FIXED: Separate method for env file updates with atomic writes
+     */
+    async updateEnvFile(publicKey) {
+        let envContent = '';
+        try {
+            envContent = await fs.readFile(this.envPath, 'utf8');
+        } catch (error) {
+            envContent = '# Environment Variables\n';
+        }
+
+        const lines = envContent.split('\n');
+        const newLines = [];
+        let foundPublicKey = false;
+
+        for (const line of lines) {
+            if (line.startsWith('ACTIVITYPUB_PUBLIC_KEY=')) {
+                newLines.push(`ACTIVITYPUB_PUBLIC_KEY="${publicKey.replace(/\n/g, '\\n')}"`);
+                foundPublicKey = true;
+            } else if (line.startsWith('INCLUDE_WIKI_IN_ACTIVITYPUB=')) {
+                newLines.push('INCLUDE_WIKI_IN_ACTIVITYPUB=true');
+            } else {
+                newLines.push(line);
+            }
+        }
+
+        if (!foundPublicKey) {
+            newLines.push('');
+            newLines.push('# ActivityPub Keys');
+            newLines.push(`ACTIVITYPUB_PUBLIC_KEY="${publicKey.replace(/\n/g, '\\n')}"`);
+            newLines.push('');
+            newLines.push('# ActivityPub Settings');
+            newLines.push('INCLUDE_WIKI_IN_ACTIVITYPUB=true');
+        }
+        const tempEnvPath = this.envPath + '.tmp';
+        await fs.writeFile(tempEnvPath, newLines.join('\n'));
+        await fs.move(tempEnvPath, this.envPath);
     }
 
     /**
@@ -192,6 +219,13 @@ class ActivityPubKeyManager {
             return process.env.ACTIVITYPUB_PUBLIC_KEY.replace(/\\n/g, '\n');
         }
         
+        return null;
+    }
+
+    async getPrivateKey() {
+        if (await fs.pathExists(this.privateKeyFile)) {
+            return await fs.readFile(this.privateKeyFile, 'utf8');
+        }
         return null;
     }
 

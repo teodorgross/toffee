@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs-extra');
 const crypto = require('crypto');
+const { access } = require('fs');
 
 class ActivityPubServer {
     constructor() {
@@ -31,15 +32,35 @@ class ActivityPubServer {
 
     async loadPrivateKey() {
         try {
-            const files = await fs.readdir(this.dataDir);
-            const keyFile = files.find(f => f.startsWith('private-key-') && f.endsWith('.pem'));
+            const privateKeyFile = path.join(this.dataDir, 'private-key.pem');
             
-            if (keyFile) {
-                this.privateKey = await fs.readFile(path.join(this.dataDir, keyFile), 'utf8');
+            if (await fs.pathExists(privateKeyFile)) {
+                this.privateKey = await fs.readFile(privateKeyFile, 'utf8');
                 console.log('🔑 [ACTIVITYPUB] Private key loaded');
+            } else {
+                console.log('🔑 [ACTIVITYPUB] No private key found');
+                
+                try {
+                    const files = await fs.readdir(this.dataDir);
+                    const oldKeyFiles = files.filter(f => 
+                        f.startsWith('private-key-') && 
+                        f.endsWith('.pem') && 
+                        f !== 'private-key.pem'
+                    );
+                    
+                    if (oldKeyFiles.length > 0) {
+                        console.log(`🧹 [ACTIVITYPUB] Found ${oldKeyFiles.length} old key files, cleaning up...`);
+                        for (const file of oldKeyFiles) {
+                            await fs.remove(path.join(this.dataDir, file));
+                            console.log(`🧹 [ACTIVITYPUB] Removed old key: ${file}`);
+                        }
+                    }
+                } catch (cleanupError) {
+                    console.warn('⚠️ [ACTIVITYPUB] Could not cleanup old keys:', cleanupError.message);
+                }
             }
         } catch (error) {
-            console.log('🔑 [ACTIVITYPUB] No private key found');
+            console.error('❌ [ACTIVITYPUB] Error loading private key:', error);
         }
     }
 

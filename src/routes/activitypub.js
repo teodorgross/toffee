@@ -16,7 +16,12 @@ function setupActivityPubRoutes(app, activityPubServer) {
         }
     });
 
-
+    // Actor - Both variants
+    app.get('/actor', (req, res) => {
+        console.log(`[ACTIVITYPUB] Actor request from ${req.get('User-Agent') || 'Unknown'}`);
+        res.set('Content-Type', 'application/activity+json; charset=utf-8');
+        res.json(activityPubServer.generateActor());
+    });
 
     app.get('/actor.json', (req, res) => {
         console.log(`[ACTIVITYPUB] Actor.json request from ${req.get('User-Agent') || 'Unknown'}`);

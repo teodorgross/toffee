@@ -43,7 +43,7 @@ function setupActivityPubRoutes(app, activityPubServer) {
         res.json(activityPubServer.generateCollection('following'));
     });
 
-    app.get('/inbox', (req, res) => {
+    app.get('/inbox.json', (req, res) => {
         console.log(`[ACTIVITYPUB] GET request to /inbox`);
         res.set('Content-Type', 'application/activity+json; charset=utf-8');
         res.json({
@@ -55,7 +55,7 @@ function setupActivityPubRoutes(app, activityPubServer) {
         });
     });
 
-    app.post('/inbox', async (req, res) => {
+    app.post('/inbox.json', async (req, res) => {
         const activity = req.body;
         
         console.log(`[ACTIVITYPUB] Incoming activity:`, JSON.stringify(activity, null, 2));

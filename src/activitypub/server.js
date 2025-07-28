@@ -284,71 +284,66 @@ class ActivityPubServer {
         };
     }
 
-    signRequest(method, url, body) {
-        if (!this.privateKey) {
-            console.error('[ACTIVITYPUB] No private key available for signing');
-            return null;
-        }
+        signRequest(method, url, body) {
+                if (!this.privateKey) {
+                    console.error('❌ No private key for signing!');
+                    return null;
+                }
 
-        try {
-            const urlObj = new URL(url);
-            const date = new Date().toUTCString();
-            
-            const digest = body ? 'SHA-256=' + crypto
-                .createHash('sha256')
-                .update(body, 'utf8')
-                .digest('base64') : null;
-            
-            const requestTarget = `${method.toLowerCase()} ${urlObj.pathname}`;
-            const headersToSign = [
-                `(request-target): ${requestTarget}`,
-                `host: ${urlObj.hostname}`,
-                `date: ${date}`
-            ];
-            
-            if (digest) {
-                headersToSign.push(`digest: ${digest}`);
+                try {
+                    const urlObj = new URL(url);
+                    const date = new Date().toUTCString();
+                    
+                    // SHA-256 Digest
+                    const bodyBuffer = Buffer.from(body || '', 'utf8');
+                    const digest = 'SHA-256=' + crypto.createHash('sha256').update(bodyBuffer).digest('base64');
+                    
+                    // Request Target
+                    const requestTarget = `${method.toLowerCase()} ${urlObj.pathname}`;
+                    
+                    // Headers to sign
+                    const headersToSign = [
+                        `(request-target): ${requestTarget}`,
+                        `host: ${urlObj.hostname}`,
+                        `date: ${date}`,
+                        `digest: ${digest}`,
+                        `content-type: application/activity+json`
+                    ];
+                    
+                    const stringToSign = headersToSign.join('\n');
+                    
+                    // Generate signature
+                    const signature = crypto.sign('sha256', Buffer.from(stringToSign, 'utf8'), {
+                        key: this.privateKey,
+                        padding: crypto.constants.RSA_PKCS1_PADDING
+                    }).toString('base64');
+                    
+                    // Return headers
+                    return {
+                        'Host': urlObj.hostname,
+                        'Date': date,
+                        'Digest': digest,
+                        'Content-Type': 'application/activity+json',
+                        'User-Agent': 'MinimalActivityPub/1.0',
+                        'Accept': 'application/activity+json',
+                        'Signature': `keyId="${this.baseUrl}/actor.json#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="${signature}"`
+                    };
+                } catch (error) {
+                    console.error('❌ Signing error:', error);
+                    return null;
+                }
             }
-            
-            const signingString = headersToSign.join('\n');
-            
-            const signature = crypto
-                .sign('sha256', Buffer.from(signingString, 'utf8'), this.privateKey)
-                .toString('base64');
-            
-            const signatureHeaders = digest ? 
-                '(request-target) host date digest' : 
-                '(request-target) host date';
-            
-            const signatureHeader = `keyId="${this.baseUrl}/actor#main-key",algorithm="rsa-sha256",headers="${signatureHeaders}",signature="${signature}"`;
-            
-            const headers = {
-                'Host': urlObj.hostname,
-                'Date': date,
-                'Content-Type': 'application/activity+json',
-                'User-Agent': 'BlogWikiActivityPub/1.0',
-                'Signature': signatureHeader
-            };
-            
-            if (digest) {
-                headers['Digest'] = digest;
-            }
-            
-            return headers;
-        } catch (error) {
-            console.error('[ACTIVITYPUB] Error signing request:', error);
-            return null;
-        }
-    }
+
 
     async sendActivityToFollower(followerUrl, activity) {
         try {
-            console.log(`📤 [ACTIVITYPUB] Sending activity to ${followerUrl}`);
-            
+            console.log(`📤 Sending activity to ${followerUrl}`);
+
+            // 1. Get follower's actor info
             const actorResponse = await fetch(followerUrl, {
-                headers: {
-                    'Accept': 'application/activity+json, application/ld+json',
-                    'User-Agent': 'BlogWikiActivityPub/1.0'
+                headers: { 
+                    'Accept': 'application/activity+json',
+                    'User-Agent': 'MinimalActivityPub/1.0'
                 }
             });
             
@@ -361,25 +356,26 @@ class ActivityPubServer {
             const inboxUrl = actorData.inbox;
             
             if (!inboxUrl) {
-                console.error(`❌ No inbox found for ${followerUrl}`);
+                console.error(`❌ No inbox found`);
                 return false;
             }
-            
-            const body = JSON.stringify(activity);
+
+            // 2. Sign and send activity
+            const body = JSON.stringify(activity, null, 0); // No formatting!
             const headers = this.signRequest('POST', inboxUrl, body);
             
             if (!headers) {
-                console.error(`❌ Failed to sign request for ${inboxUrl}`);
+                console.error(`❌ Failed to sign request`);
                 return false;
             }
-            
+
             const response = await fetch(inboxUrl, {
                 method: 'POST',
                 headers: headers,
                 body: body
             });
-            
-            console.log(`📤 Response from ${inboxUrl}: ${response.status} ${response.statusText}`);
+
+            console.log(`📤 Response: ${response.status} ${response.statusText}`);
             
             if (!response.ok) {
                 const errorText = await response.text();
@@ -387,48 +383,49 @@ class ActivityPubServer {
             }
             
             return response.ok;
+            
         } catch (error) {
-            console.error(`❌ Error sending activity to ${followerUrl}:`, error);
+            console.error(`❌ Send error:`, error);
             return false;
         }
     }
 
     async handleFollow(activity) {
-        try {
-            console.log(`[ACTIVITYPUB] Processing Follow from ${activity.actor}`);
-            
-            this.followers.add(activity.actor);
-            this.activities.push({
-                ...activity,
-                received: new Date().toISOString()
-            });
-            
-            await this.saveData();
-
-            const acceptActivity = {
-                "@context": "https://www.w3.org/ns/activitystreams",
-                "type": "Accept",
-                "id": `${this.baseUrl}/activities/accept/${Date.now()}`,
-                "actor": `${this.baseUrl}/actor`,
-                "object": activity,
-                "to": [activity.actor],
-                "published": new Date().toISOString()
-            };
-
-            const sent = await this.sendActivityToFollower(activity.actor, acceptActivity);
-            if (sent) {
-                console.log(`✅ [ACTIVITYPUB] Accept sent to ${activity.actor}`);
-            } else {
-                console.log(`❌ [ACTIVITYPUB] Failed to send Accept to ${activity.actor}`);
+            try {
+                console.log(`👤 Processing Follow from: ${activity.actor}`);
+                
+                // Add follower
+                this.followers.add(activity.actor);
+                await this.saveData();
+                
+                console.log(`✅ Added follower: ${activity.actor} (Total: ${this.followers.size})`);
+                
+                const acceptActivity = {
+                    "@context": "https://www.w3.org/ns/activitystreams",
+                    "type": "Accept",
+                    "id": `${this.baseUrl}/activities/accept/${Date.now()}`,
+                    "actor": `${this.baseUrl}/actor.json`,
+                    "object": activity,
+                    "to": [activity.actor],
+                    "published": new Date().toISOString()
+                };
+                
+                // Send Accept activity
+                const sent = await this.sendActivityToFollower(activity.actor, acceptActivity);
+                
+                if (sent) {
+                    console.log(`✅ Accept activity sent to ${activity.actor}`);
+                } else {
+                    console.log(`❌ Failed to send Accept activity to ${activity.actor}`);
+                }
+                
+                return { success: sent, acceptActivity };
+                
+            } catch (error) {
+                console.error('❌ Error handling Follow:', error);
+                throw error;
             }
-            
-            return acceptActivity;
-        } catch (error) {
-            console.error('[ACTIVITYPUB] Error handling Follow:', error);
-            throw error;
         }
-    }
-
     async handleUndo(activity) {
         try {
             if (activity.object?.type === 'Follow') {

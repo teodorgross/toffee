@@ -1,0 +1,54 @@
+<% 
+const currentPage = 'blog';
+const title = post.title;
+%>
+
+<section class="content-section">
+
+    
+    <article>
+        <header style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--terminal-green);">
+            <h1 style="color: var(--terminal-green); font-size: 2rem; margin-bottom: 15px;">
+                <%= post.title %>
+            </h1>
+            
+            <div style="color: var(--terminal-gray); font-size: 0.9rem;">
+                <div class="d-flex flex-wrap gap-3">
+                    <span>
+                        <i class="fas fa-user me-1"></i>
+                        <%= post.author %>
+                    </span>
+                    <span>
+                        <i class="fas fa-calendar me-1"></i>
+                        <%= moment(post.date).format('MMMM DD, YYYY') %>
+                    </span>
+                    <% if (post.tags && post.tags.length > 0) { %>
+                        <span>
+                            <i class="fas fa-tags me-1"></i>
+                            <% post.tags.forEach((tag, i) => { %>
+                                <span style="color: var(--terminal-cyan);">#<%= tag %></span><%= i < post.tags.length - 1 ? ', ' : '' %>
+                            <% }) %>
+                        </span>
+                    <% } %>
+                </div>
+            </div>
+        </header>
+        
+        <div class="blog-content" style="color: var(--terminal-white); line-height: 1.8; font-size: 1rem;">
+            <%- post.content %>
+        </div>
+    </article>
+    
+    <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--terminal-green);">
+        <div class="d-flex justify-content-between align-items-center">
+            <a href="/blog" class="btn-terminal">
+                <i class="fas fa-arrow-left me-2"></i>Back to Blog
+            </a>
+            
+            <div style="color: var(--terminal-gray); font-size: 0.8rem;">
+                File: <%= post.filename %>
+            </div>
+        </div>
+    </footer>
+</section>
+

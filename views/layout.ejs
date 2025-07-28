@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="de" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= typeof title !== 'undefined' ? title + ' - ' : fediverseConfig.sitename %><% if (typeof fediverseConfig !== 'undefined' && fediverseConfig.sitename) { %>
+                <%= fediverseConfig.sitename %>
+            <% } else { %>
+                Toffee
+            <% } %></title>
+            
+    <link rel="shortcut icon" href="/assets/favicon/favicon.ico" type="image/x-icon">
+    
+    <!-- Bootstrap CSS - KORRIGIERTER PFAD -->
+    <link href="/assets/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome Icons - KORRIGIERTER PFAD -->
+    <link href="/assets/css/all.min.css" rel="stylesheet">
+    <!-- Deine eigenen Styles - KORRIGIERTER PFAD -->
+    <link href="/assets/css/main.css" rel="stylesheet">
+
+    <style>
+
+
+    </style>
+</head>
+<body>
+    <!-- Mobile Navigation Toggle -->
+
+
+    <div class="main-container">
+        <!-- Side Navigation -->
+         
+<nav class="side-nav" id="sideNav">
+  
+    <h3>
+                    <% if (typeof fediverseConfig !== 'undefined' && fediverseConfig.sitename) { %>
+                <%= fediverseConfig.sitename %>
+            <% } else { %>
+                Toffee
+            <% } %>
+    </h3>
+      <div class="profile-image-container">
+
+        <div class="profile-image-wrapper">
+        <!-- Hier können Sie Ihr Bild einfügen -->
+        <img src="/assets/img/Image.png" alt="Profilbild" class="profile-image">
+        <!-- Alternative: Initials falls kein Bild -->
+        <!-- <div class="profile-initials">TG</div> -->
+    </div>
+    </div>
+    <div class="nav-item">
+        <a href="/" class="nav-link <%= typeof currentPage !== 'undefined' && currentPage === 'home' ? 'active' : '' %>">
+            <i class="fas fa-home"></i> Home
+        </a>
+    </div>
+   
+    
+    <div class="nav-item">
+        <a href="/blog" class="nav-link <%= typeof currentPage !== 'undefined' && currentPage === 'blog' ? 'active' : '' %>">
+            <i class="fas fa-newspaper"></i> Blog
+        </a>
+    </div>
+    <!-- NEUE WIKI NAVIGATION -->
+    <div class="nav-item">
+        <a href="/wiki" class="nav-link <%= typeof currentPage !== 'undefined' && currentPage === 'wiki' ? 'active' : '' %>">
+            <i class="fas fa-book"></i> Wiki
+        </a>
+    </div>
+   
+    
+
+
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border);">
+        <h3>Socials</h3>
+        <div class="social-icons-container">
+            <div class="social-icons-wrapper">
+                <!-- GitHub -->
+                <% if (typeof fediverseConfig !== 'undefined' && fediverseConfig.socialLinks && fediverseConfig.socialLinks.github) { %>
+                <a href="<%= fediverseConfig.socialLinks.github %>" class="social-icon" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-github"></i>
+                </a>
+                <% } %>
+                
+                <!-- Git (custom) -->
+                <% if (typeof fediverseConfig !== 'undefined' && fediverseConfig.socialLinks && fediverseConfig.socialLinks.git) { %>
+                <a href="<%= fediverseConfig.socialLinks.git %>" class="social-icon" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-git"></i>
+                </a>
+                <% } %>
+                
+                <!-- Mastodon -->
+                <% if (typeof fediverseConfig !== 'undefined' && fediverseConfig.socialLinks && fediverseConfig.socialLinks.mastodon) { %>
+                <a href="<%= fediverseConfig.socialLinks.mastodon %>" class="social-icon" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-mastodon"></i>
+                </a>
+                <% } %>
+                
+                <!-- Twitter/X -->
+                <% if (typeof fediverseConfig !== 'undefined' && fediverseConfig.socialLinks && fediverseConfig.socialLinks.twitter) { %>
+                <a href="<%= fediverseConfig.socialLinks.twitter %>" class="social-icon" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-twitter"></i>
+                </a>
+                <% } %>
+                
+                <!-- LinkedIn -->
+                <% if (typeof fediverseConfig !== 'undefined' && fediverseConfig.socialLinks && fediverseConfig.socialLinks.linkedin) { %>
+                <a href="<%= fediverseConfig.socialLinks.linkedin %>" class="social-icon" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-linkedin"></i>
+                </a>
+                <% } %>
+                
+                <!-- Email -->
+                <% if (typeof fediverseConfig !== 'undefined' && fediverseConfig.socialLinks && fediverseConfig.socialLinks.email) { %>
+                <a href="mailto:<%= fediverseConfig.socialLinks.email %>" class="social-icon">
+                    <i class="fas fa-envelope"></i>
+                </a>
+                <% } %>
+                
+                <!-- Coffee/Support -->
+                <% if (typeof fediverseConfig !== 'undefined' && fediverseConfig.socialLinks && fediverseConfig.socialLinks.coffee) { %>
+                <a href="<%= fediverseConfig.socialLinks.coffee %>" class="social-icon" target="_blank" rel="noopener noreferrer">
+                    <i class="fas fa-coffee"></i>
+                </a>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <!-- Made with Section ganz unten -->
+    <div class="made-with-section"</div>
+        <div>Made with ♥️ 
+            <% if (typeof fediverseConfig !== 'undefined' && fediverseConfig.siten) { %>
+                <%= fediverseConfig.madeWith %>
+            <% } else { %>
+                Toffee
+            <% } %>
+        </div>
+    </div>
+
+
+   
+    
+    
+</nav>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+
+
+            <!-- Page Content -->
+            <%- body %>
+        </main>
+        
+
+        <!-- Blog Sidebar -->
+        
+    </div>
+
+    <!-- Bootstrap JS -->
+
+
+    <script>
+// Mobile Menu Functionality - Angepasst für den neuen Button-Inhalt
+document.addEventListener('DOMContentLoaded', function() {
+    // Create mobile menu toggle button (UNSICHTBAR)
+    const mobileToggle = document.createElement('button');
+    mobileToggle.className = 'mobile-menu-toggle';
+    mobileToggle.style.display = 'none'; // MACHT DEN BUTTON UNSICHTBAR
+    
+    // Dynamischer Text basierend auf fediverseConfig
+    const siteName = '<% if (typeof fediverseConfig !== "undefined" && fediverseConfig.sitename) { %><%= fediverseConfig.sitename %><% } else { %>Toffee<% } %>';
+    
+    mobileToggle.innerHTML = `<span style="flex: 0 0 auto;">☰</span><span style="flex: 1; text-align: center; font-weight: 600;">${siteName}</span>`;
+    mobileToggle.setAttribute('aria-label', 'Toggle mobile menu');
+    document.body.appendChild(mobileToggle);
+
+    const sideNav = document.querySelector('.side-nav');
+
+    // Toggle mobile menu (funktioniert weiterhin, aber Button ist unsichtbar)
+    mobileToggle.addEventListener('click', function() {
+        sideNav.classList.toggle('active');
+        const isActive = sideNav.classList.contains('active');
+        mobileToggle.innerHTML = isActive ?
+            `<span style="flex: 0 0 auto;">✕</span><span style="flex: 1; text-align: center; font-weight: 600;">${siteName}</span>` :
+            `<span style="flex: 0 0 auto;">☰</span><span style="flex: 1; text-align: center; font-weight: 600;">${siteName}</span>`;
+    });
+});
+
+// Smooth scrolling for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+            target.scrollIntoView({
+                behavior: 'smooth'
+            });
+        }
+    });
+});
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();x
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+
+      
+
+       
+
+      
+    </script>
+</body>
+</html>

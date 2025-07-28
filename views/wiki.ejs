@@ -1,0 +1,128 @@
+<%
+const currentPage = 'wiki';
+const title = 'Wiki';
+%>
+
+
+
+    
+
+</section>
+
+<!-- Wiki Home Content -->
+<% if (homePage) { %>
+<section class="content-section animate-fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="section-title">Documentation Wiki</h1>
+
+    </div>
+    <div class="wiki-home-content">
+        <%- homePage.content %>
+    </div>
+</section>
+<% } %>
+
+<!-- Categories Overview -->
+<section class="content-section animate-fade-in">
+    <h2 class="section-title">Documentation Categories</h2>
+    
+
+    
+    <div class="row">
+        <% Object.entries(categories).forEach(([category, pages]) => { %>
+            <div class="col-lg-6 mb-4">
+                <div class="wiki-category-card">
+                    <div class="wiki-category-header">
+                        <h3 class="wiki-category-title">
+                            <i class="fas fa-folder-open"></i>
+                            <%= category.charAt(0).toUpperCase() + category.slice(1) %>
+                        </h3>
+                        <span class="wiki-page-count"><%= pages.length %> pages</span>
+                    </div>
+                    
+                    <div class="wiki-category-pages">
+                        <% pages.slice(0, 5).forEach(page => { %>
+                            <div class="wiki-page-item">
+                                <a href="/wiki/<%= page.slug %>" class="wiki-page-link">
+                                    <i class="fas fa-file-alt"></i>
+                                    <%= page.title %>
+                                </a>
+                                <div class="wiki-page-meta">
+                                    <span class="wiki-page-modified">
+                                        <i class="fas fa-clock"></i>
+                                        <%= moment(page.lastModified).fromNow() %>
+                                    </span>
+                                    <% if (page.tags.length > 0) { %>
+                                        <div class="wiki-page-tags">
+                                            <% page.tags.slice(0, 2).forEach(tag => { %>
+                                                <span class="wiki-tag">#<%= tag %></span>
+                                            <% }) %>
+                                        </div>
+                                    <% } %>
+                                </div>
+                            </div>
+                        <% }) %>
+                        
+                        <% if (pages.length > 5) { %>
+                            <div class="wiki-category-more">
+                                <a href="/wiki/search?q=category:<%= category %>" class="read-more-link">
+                                    View all <%= pages.length %> pages <i class="fas fa-arrow-right"></i>
+                                </a>
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        <% }) %>
+    </div>
+</section>
+
+
+<!-- Wiki Stats -->
+<section class="content-section animate-fade-in">
+    <h2 class="section-title">Wiki Statistics</h2>
+
+    
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <div class="metric-card">
+                <div class="metric-icon">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <div class="metric-value"><%= wikiPages.length %></div>
+                <div class="metric-label">Total Pages</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="metric-card">
+                <div class="metric-icon">
+                    <i class="fas fa-folder"></i>
+                </div>
+                <div class="metric-value"><%= Object.keys(categories).length %></div>
+                <div class="metric-label">Categories</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="metric-card">
+                <div class="metric-icon">
+                    <i class="fas fa-tags"></i>
+                </div>
+                <div class="metric-value">
+                    <%= [...new Set(wikiPages.flatMap(p => p.tags))].length %>
+                </div>
+                <div class="metric-label">Unique Tags</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="metric-card">
+                <div class="metric-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="metric-value">
+                    <%= moment(Math.max(...wikiPages.map(p => new Date(p.lastModified)))).fromNow() %>
+                </div>
+                <div class="metric-label">Last Updated</div>
+            </div>
+        </div>
+    </div>
+</section>

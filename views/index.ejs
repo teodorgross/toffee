@@ -1,0 +1,142 @@
+<%
+const currentPage = 'home';
+const title = '';
+%>
+<% if (typeof posts !== 'undefined' && posts && posts.length > 0) { %>
+<section class="content-section animate-fade-in">
+<h2 class="section-title">Latest Blog Posts</h2>
+
+
+
+<div class="blog-layout">
+    <div class="featured-post">
+        <% if (posts.length > 0) { %>
+            <h3 class="featured-title">
+                <a href="/blog/<%= posts[0].slug %>"><%= posts[0].title %></a>
+            </h3>
+            <div class="featured-meta">
+                <span><i class="fas fa-user"></i> <%= posts[0].author %></span>
+                <span><i class="fas fa-calendar"></i> <%= moment(posts[0].date).format('MMMM DD, YYYY') %></span>
+                <span><i class="fas fa-clock"></i> 
+                    <%= posts[0].readTime || Math.ceil(posts[0].excerpt.length / 200) %> min read
+                </span>
+            </div>
+            <p class="featured-excerpt">
+                <%= posts[0].excerpt %>
+            </p>
+            <% if (posts[0].tags && posts[0].tags.length > 0) { %>
+                <div class="featured-tags">
+                    <% posts[0].tags.slice(0, 4).forEach(tag => { %>
+                        <span class="featured-tag">#<%= tag %></span>
+                    <% }) %>
+                </div>
+            <% } %>
+            <a href="/blog/<%= posts[0].slug %>" class="btn-terminal">
+                <i class="fas fa-arrow-right"></i> Read Full Post
+            </a>
+        <% } %>
+    </div>
+
+    <div class="recent-posts">
+        <h3>Recent Posts</h3>
+        
+        <% posts.slice(1, 5).forEach(post => { %>
+            <div class="recent-post-item">
+                <a href="/blog/<%= post.slug %>" class="recent-post-title">
+                    <%= post.title %>
+                </a>
+                <div class="recent-post-meta">
+                    <span><i class="fas fa-calendar"></i> <%= moment(post.date).format('MMM DD, YYYY') %></span>
+                    <span><i class="fas fa-clock"></i> 
+                        <%= post.readTime || Math.ceil(post.excerpt.length / 200) %> min
+                    </span>
+                </div>
+                <div class="recent-post-excerpt">
+                    <%= post.excerpt %>
+                </div>
+            </div>
+        <% }) %>
+
+        <div class="text-center mt-3">
+            <a href="/blog" class="btn-terminal btn-sm">
+                <i class="fas fa-archive"></i> View All Posts
+            </a>
+        </div>
+    </div>
+</div>
+</section>
+<% } else { %>
+<section class="content-section animate-fade-in">
+    <h2 class="section-title">Blog</h2>
+
+    
+    <div class="blog-layout">
+        <div class="featured-post">
+            <div class="text-center" style="padding: 60px 20px;">
+                <i class="fas fa-file-alt" style="font-size: 4rem; color: var(--terminal-gray); margin-bottom: 20px; opacity: 0.5;"></i>
+                <h3 style="color: var(--terminal-gray); margin-bottom: 15px;">No blog posts yet</h3>
+                <p style="color: var(--terminal-gray); opacity: 0.8;">
+                    Add .md files to the posts/ directory to get started.
+                </p>
+            </div>
+        </div>
+        
+        <div class="recent-posts">
+            <h3>Coming Soon</h3>
+            <div class="text-center" style="padding: 40px 20px;">
+                <p style="color: var(--terminal-gray); font-style: italic;">
+                    Blog posts will appear here once content is added.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+<% } %>
+
+
+
+
+
+<div class="content-section">
+    <h3 class="section-title">Latest Wiki Updates</h3>
+    <% 
+    // Filter out home page and get latest 5 wiki pages
+    const latestWikiPages = wikiPages
+        .filter(page => page.slug !== 'home')
+        .sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified))
+        .slice(0, 5);
+    %>
+    <% if (latestWikiPages && latestWikiPages.length > 0) { %>
+        <% latestWikiPages.forEach(page => { %>
+        <div class="recent-post-item">
+            <a href="/wiki/<%= page.slug %>" class="recent-post-title">
+                📖 <%= page.title %>
+            </a>
+            <div class="recent-post-meta">
+                <span><i class="fas fa-folder"></i> <%= page.category %></span>
+                <span><i class="fas fa-clock"></i> <%= moment(page.lastModified).fromNow() %></span>
+            </div>
+            <% if (page.description) { %>
+            <div class="recent-post-excerpt">
+                <%= page.description.substring(0, 100) %><% if (page.description.length > 100) { %>...<% } %>
+            </div>
+            <% } %>
+            <% if (page.tags && page.tags.length > 0) { %>
+            <div style="margin-top: 8px;">
+                <% page.tags.slice(0, 3).forEach(tag => { %>
+                <span class="featured-tag">#<%= tag %></span>
+                <% }) %>
+            </div>
+            <% } %>
+        </div>
+        <% }) %>
+        
+        <div style="text-align: center; margin-top: 16px;">
+            <a href="/wiki" class="btn-terminal btn-sm">Browse All Wiki Pages</a>
+        </div>
+    <% } else { %>
+        <p style="text-align: center; color: var(--text-secondary); padding: 20px; font-size: 0.9rem;">
+            No wiki pages yet. Add some .md files to the wiki/ directory!
+        </p>
+    <% } %>
+</div>

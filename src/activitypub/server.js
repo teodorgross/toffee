@@ -422,18 +422,16 @@ class ActivityPubServer {
             if (sent) {
                 console.log(`✅ Accept activity sent to ${activity.actor}`);
                 
-                // Send recent posts to new follower
-                console.log(`📤 Sending recent posts to new follower: ${activity.actor}`);
+                console.log(`📤 [DEBUG] Sending recent posts IMMEDIATELY to new follower: ${activity.actor}`);
                 
-                // Use setTimeout to ensure Accept was processed
-                setTimeout(async () => {
-                    try {
-                        await this.sendRecentPostsToNewFollower(activity.actor, blogPosts, wikiPages);
-                    } catch (error) {
-                        console.error(`❌ Error sending recent posts: ${error.message}`);
-                    }
-                }, 1000); // Wait 1 second
-                
+                try {
+                    await this.sendRecentPostsToNewFollower(activity.actor, blogPosts, wikiPages);
+                    console.log(`✅ [DEBUG] Finished sending recent posts`);
+                } catch (error) {
+                    console.error(`❌ [DEBUG] Error sending recent posts: ${error.message}`);
+                    console.error(`❌ [DEBUG] Stack trace:`, error.stack);
+                }
+                    
             } else {
                 console.log(`❌ Failed to send Accept activity to ${activity.actor}`);
             }

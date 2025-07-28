@@ -23,15 +23,15 @@ class ActivityPubServer {
     }
 
     async initialize() {
-        await this.loadKeys();
-        await this.loadData();
-        
         if (this.keyManager) {
             this.keyManager.onKeysRefreshed(async () => {
                 console.log('🔄 [ACTIVITYPUB] Keys refreshed, reloading...');
                 await this.loadKeys();
             });
         }
+        
+        await this.loadKeys();
+        await this.loadData();
         
         console.log('✅ [ACTIVITYPUB] Server initialization complete');
     }
@@ -43,6 +43,7 @@ class ActivityPubServer {
     async loadKeys() {
         try {
             if (this.keyManager) {
+                await this.keyManager.refreshEnvironment();
                 this.publicKey = await this.keyManager.getPublicKey();
                 this.privateKey = await this.keyManager.getPrivateKey();
             } else {
@@ -54,6 +55,31 @@ class ActivityPubServer {
                 console.log('🔑 [ACTIVITYPUB] Keys loaded successfully');
             } else {
                 console.log('⚠️ [ACTIVITYPUB] Keys not available yet');
+                
+                if (this.keyManager && !this.keyManager.hasKeys()) {
+                    console.log('🔄 [ACTIVITYPUB] Waiting for key generation to complete...');
+                    
+                    let retries = 0;
+                    const maxRetries = 10;
+                    
+                    while (retries < maxRetries && !this.areKeysAvailable()) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        
+                        this.publicKey = await this.keyManager.getPublicKey();
+                        this.privateKey = await this.keyManager.getPrivateKey();
+                        
+                        retries++;
+                        
+                        if (this.areKeysAvailable()) {
+                            console.log('🔑 [ACTIVITYPUB] Keys loaded after retry');
+                            break;
+                        }
+                    }
+                    
+                    if (!this.areKeysAvailable()) {
+                        console.error('❌ [ACTIVITYPUB] Failed to load keys after retries');
+                    }
+                }
             }
         } catch (error) {
             console.error('❌ [ACTIVITYPUB] Error loading keys:', error);
@@ -78,18 +104,20 @@ class ActivityPubServer {
                 console.log('🔑 [ACTIVITYPUB] No private key file found');
                 
                 try {
-                    const files = await fs.readdir(this.dataDir);
-                    const oldKeyFiles = files.filter(f => 
-                        f.startsWith('private-key-') && 
-                        f.endsWith('.pem') && 
-                        f !== 'private-key.pem'
-                    );
-                    
-                    if (oldKeyFiles.length > 0) {
-                        console.log(`🧹 [ACTIVITYPUB] Found ${oldKeyFiles.length} old key files, cleaning up...`);
-                        for (const file of oldKeyFiles) {
-                            await fs.remove(path.join(this.dataDir, file));
-                            console.log(`🧹 [ACTIVITYPUB] Removed old key: ${file}`);
+                    if (await fs.pathExists(this.dataDir)) {
+                        const files = await fs.readdir(this.dataDir);
+                        const oldKeyFiles = files.filter(f => 
+                            f.startsWith('private-key-') && 
+                            f.endsWith('.pem') && 
+                            f !== 'private-key.pem'
+                        );
+                        
+                        if (oldKeyFiles.length > 0) {
+                            console.log(`🧹 [ACTIVITYPUB] Found ${oldKeyFiles.length} old key files, cleaning up...`);
+                            for (const file of oldKeyFiles) {
+                                await fs.remove(path.join(this.dataDir, file));
+                                console.log(`🧹 [ACTIVITYPUB] Removed old key: ${file}`);
+                            }
                         }
                     }
                 } catch (cleanupError) {
@@ -183,6 +211,10 @@ class ActivityPubServer {
 
     async generateActor() {
         await this.ensureInitialized();
+        
+        if (!this.areKeysAvailable()) {
+            await this.refreshKeys();
+        }
         
         if (!this.areKeysAvailable()) {
             console.error('❌ [ACTIVITYPUB] Cannot generate actor - keys not available');

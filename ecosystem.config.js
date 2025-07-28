@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 // ecosystem.config.js - Korrigierte Version
+=======
+>>>>>>> e74d2bd114d95bd2f22ed2b65e0c5054eb8e255b
 module.exports = {
     apps: [{
         name: 'blog-wiki-activitypub',

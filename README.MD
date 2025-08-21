@@ -14,7 +14,7 @@
 
 A complete blog and wiki server with native ActivityPub support that automatically shares your content in the Fediverse (Mastodon, Pleroma, etc.).
 
-# DEMO: (https://teodorgross.eu)
+
 
 ## 🚀 Quick Installation
 
